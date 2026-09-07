@@ -1,6 +1,6 @@
 # Wondrous architecture
 
-Laravel 12 / PHP 8.4.1+, React 19 + TypeScript / Inertia 2, Three.js via React Three Fiber, Laravel Reverb, Thunk Verbs 0.9. Laravel 12 was chosen for the current Verbs compatibility constraint; upgrade together after verifying package support.
+Laravel 13 / PHP 8.4.1+, React 19 + TypeScript / Inertia 2, Three.js via React Three Fiber, Laravel Reverb, Thunk Verbs 0.9. The installed Verbs release supports Laravel 13. Sessions use JSON serialization and cache values do not allow PHP object deserialization.
 
 ## Authoritative match state
 

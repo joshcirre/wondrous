@@ -1,6 +1,6 @@
 # Wondrous
 
-A playable multiplayer fantasy tactics MVP: Laravel 12, React 19 + Inertia 2, Three.js / React Three Fiber, Reverb and Thunk Verbs. Six champions per commander on an 8×8 tabletop battlefield.
+A playable multiplayer fantasy tactics MVP: Laravel 13, React 19 + Inertia 2, Three.js / React Three Fiber, Reverb and Thunk Verbs. Six champions per commander on an 8×8 tabletop battlefield.
 
 ## Run locally
 
