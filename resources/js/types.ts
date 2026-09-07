@@ -77,6 +77,7 @@ export type Game = {
     code: string;
     name: string;
     ranked: boolean;
+    mode: "multiplayer" | "practice";
     time_control: "live" | "correspondence";
     turn_due_at: string | null;
     version: number;

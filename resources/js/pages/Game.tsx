@@ -77,6 +77,9 @@ export default function Game() {
     const [confirmResign, setConfirmResign] = useState(false);
     const [copied, setCopied] = useState(false);
     const [destination, setDestination] = useState("");
+    const practice = game.mode === "practice";
+    const [syncing, setSyncing] = useState(false);
+    const refreshRef = useRef(false);
     const state = game.state;
     const mine = state.players.some((p) => p.id === viewer.id);
     const myTurn = state.turn_player_id === viewer.id;
@@ -89,11 +92,16 @@ export default function Game() {
         [],
     );
     const refresh = useCallback(async () => {
+        if (refreshRef.current) return;
+        refreshRef.current = true;
         try {
             const r = await api.get(`/games/${props.game.code}/state`);
             update(r.data.game);
+            setSyncing(false);
         } catch {
-            /* Existing board remains visible during reconnection. */
+            setSyncing(true);
+        } finally {
+            refreshRef.current = false;
         }
     }, [props.game.code, update]);
     useEffect(() => {
@@ -105,6 +113,7 @@ export default function Game() {
         channel?.subscribed(() => setConnected(true));
         const connection = e?.connector.pusher.connection;
         const online = () => {
+            setConnected(true);
             refresh();
         };
         const offline = () => setConnected(false);
@@ -114,9 +123,11 @@ export default function Game() {
 
         const timer = setInterval(refresh, 3000);
         window.addEventListener("focus", refresh);
+        window.addEventListener("online", refresh);
         return () => {
             clearInterval(timer);
             window.removeEventListener("focus", refresh);
+            window.removeEventListener("online", refresh);
             e?.leave(mine ? `game.${game.id}` : "lobby");
             connection?.unbind("connected", online);
             connection?.unbind("disconnected", offline);
@@ -132,7 +143,7 @@ export default function Game() {
         if (state.phase === "finished") router.reload({ only: ["auth"] });
     }, [state.phase]);
     async function action(type: string, payload: Record<string, unknown> = {}) {
-        if (busyRef.current) return;
+        if (busyRef.current || syncing) return;
         busyRef.current = true;
         setBusy(true);
         setError("");
@@ -162,6 +173,7 @@ export default function Game() {
         selected.owner_id === viewer.id &&
         selected.hp > 0 &&
         myTurn &&
+        !syncing &&
         (!state.active_unit_id || state.active_unit_id === selected.id) &&
         (selected.recovery === 0 || state.active_unit_id === selected.id) &&
         !selected.statuses.stun &&
@@ -298,11 +310,13 @@ export default function Game() {
             <div className="match-header">
                 <div>
                     <Eyebrow>
-                        {game.time_control === "correspondence"
-                            ? "Correspondence · 24h per turn"
-                            : game.ranked
-                              ? "Ranked match"
-                              : "Friendly match"}{" "}
+                        {practice
+                            ? "Solo practice · Computer opponent"
+                            : game.time_control === "correspondence"
+                              ? "Correspondence · 24h per turn"
+                              : game.ranked
+                                ? "Ranked match"
+                                : "Friendly match"}{" "}
                         · {game.code}
                     </Eyebrow>
                     <h1>{game.name}</h1>
@@ -328,9 +342,34 @@ export default function Game() {
                 </div>
                 <div className="connection">
                     <i className={connected ? "online" : ""} />
-                    {connected ? "Live" : "Reconnecting · polling"}
+                    {busy && practice
+                        ? "Computer responding…"
+                        : syncing
+                          ? "Reconnecting…"
+                          : connected
+                            ? "Live"
+                            : "Connected · polling"}
                 </div>
             </div>
+            {syncing && (
+                <div className="continuity-notice" role="status">
+                    Connection interrupted. Your last saved board is still here.
+                    Reconnecting automatically; wait for it to catch up before
+                    your next move.
+                </div>
+            )}
+            {practice && state.phase !== "finished" && (
+                <div className="practice-notice">
+                    <p>
+                        Practice freely. Choose any six champions; the computer
+                        follows the same rules. No ratings, crowns, or card
+                        rewards.
+                    </p>
+                    <Link href="/" className="text-link">
+                        Leave and resume later <ArrowRightIcon />
+                    </Link>
+                </div>
+            )}
             {game.time_control === "correspondence" &&
                 state.phase !== "finished" && (
                     <div className="correspondence-notice">
@@ -428,7 +467,9 @@ export default function Game() {
                                 : `${opponent?.name} is choosing.`}
                         </h2>
                         <p>
-                            Read their formation. Find your counter.{" "}
+                            {practice
+                                ? "The full roster is available. Try a new combination."
+                                : "Read their formation. Find your counter."}{" "}
                             <span className="gold">
                                 Pick{" "}
                                 {ownPicks.length + 1 > 6
@@ -464,10 +505,13 @@ export default function Game() {
                             )}
                         </div>
                     </div>
-                    <div className="draft-offers">
+                    <div
+                        className={`draft-offers ${practice ? "practice-offers" : ""}`}
+                    >
                         {(state.offers[viewer.id] || []).map((id) => (
                             <CharacterCard
                                 key={id}
+                                compact={practice}
                                 character={catalog[id]}
                                 tag={
                                     catalog[id].standard
@@ -483,7 +527,9 @@ export default function Game() {
                     <div className="draft-confirm">
                         <p>
                             {draftChoice
-                                ? catalog[draftChoice].passive
+                                ? practice
+                                    ? `${catalog[draftChoice].skill.name}: ${catalog[draftChoice].skill.description}`
+                                    : catalog[draftChoice].passive
                                 : myTurn
                                   ? "Select a card to inspect, then add it to your warband."
                                   : "Watch their picks and plan your response."}
@@ -551,19 +597,30 @@ export default function Game() {
                                 </p>
                             </div>
                             <div className="result-rewards">
-                                <strong>
-                                    {(state.rewards?.[viewer.id]
-                                        ?.rating_delta || 0) >= 0
-                                        ? "+"
-                                        : ""}
-                                    {state.rewards?.[viewer.id]?.rating_delta ||
-                                        0}
-                                    <span>Rating</span>
-                                </strong>
-                                <strong>
-                                    +{state.rewards?.[viewer.id]?.currency || 0}
-                                    <span>Crowns</span>
-                                </strong>
+                                {practice ? (
+                                    <p>
+                                        No stakes. Just a strategy to learn
+                                        from.
+                                    </p>
+                                ) : (
+                                    <>
+                                        <strong>
+                                            {(state.rewards?.[viewer.id]
+                                                ?.rating_delta || 0) >= 0
+                                                ? "+"
+                                                : ""}
+                                            {state.rewards?.[viewer.id]
+                                                ?.rating_delta || 0}
+                                            <span>Rating</span>
+                                        </strong>
+                                        <strong>
+                                            +
+                                            {state.rewards?.[viewer.id]
+                                                ?.currency || 0}
+                                            <span>Crowns</span>
+                                        </strong>
+                                    </>
+                                )}
                                 <Link
                                     href={`/games/${game.code}/replay`}
                                     className="button"
@@ -575,7 +632,8 @@ export default function Game() {
                                     <ArrowRightIcon />
                                 </Link>
                             </div>
-                            {state.winner_id === viewer.id &&
+                            {!practice &&
+                                state.winner_id === viewer.id &&
                                 state.turn_number >= 9 &&
                                 !game.reward_claimed &&
                                 (state.reward_candidates[viewer.id] || [])
@@ -1124,9 +1182,11 @@ export default function Game() {
                         onClick={() => setConfirmResign(true)}
                     >
                         <FlagIcon />
-                        {state.phase === "lobby"
-                            ? "Close arena"
-                            : "Resign match"}
+                        {practice
+                            ? "End practice"
+                            : state.phase === "lobby"
+                              ? "Close arena"
+                              : "Resign match"}
                     </button>
                     <Link href="/guide" className="text-link" target="_blank">
                         Consult the field guide
@@ -1141,14 +1201,18 @@ export default function Game() {
                 >
                     <Eyebrow>Lower your banner</Eyebrow>
                     <h2 id="resign-title">
-                        {state.phase === "lobby"
-                            ? "Close this arena?"
-                            : "Concede the match?"}
+                        {practice
+                            ? "End this practice game?"
+                            : state.phase === "lobby"
+                              ? "Close this arena?"
+                              : "Concede the match?"}
                     </h2>
                     <p>
-                        {state.phase === "lobby"
-                            ? "You can create a new arena any time."
-                            : "Your opponent will win. This cannot be undone."}
+                        {practice
+                            ? "Keep this game as a replay and start fresh whenever you like. Your rating and collection stay the same."
+                            : state.phase === "lobby"
+                              ? "You can create a new arena any time."
+                              : "Your opponent will win. This cannot be undone."}
                     </p>
                     <div className="modal-actions">
                         <button

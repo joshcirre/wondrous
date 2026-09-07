@@ -7,6 +7,7 @@ type Match = {
     code: string;
     name: string;
     ranked: boolean;
+    mode: "multiplayer" | "practice";
     time_control: string;
     players: { id: number; name: string }[];
     winner_id: number | null;
@@ -69,11 +70,13 @@ export default function ReplayArchive() {
                                 <p>
                                     {g.players.map((p) => p.name).join(" vs ")}{" "}
                                     ·{" "}
-                                    {g.time_control === "correspondence"
-                                        ? "Correspondence"
-                                        : g.ranked
-                                          ? "Ranked"
-                                          : "Friendly"}
+                                    {g.mode === "practice"
+                                        ? "Solo practice"
+                                        : g.time_control === "correspondence"
+                                          ? "Correspondence"
+                                          : g.ranked
+                                            ? "Ranked"
+                                            : "Friendly"}
                                 </p>
                             </div>
                             <div>

@@ -1,8 +1,34 @@
 import axios from "axios";
+import { mutationStarted, mutationFinished, needsRefresh } from "./releases";
 import Echo from "laravel-echo";
 import Pusher from "pusher-js";
 axios.defaults.headers.common["X-Requested-With"] = "XMLHttpRequest";
 axios.defaults.withCredentials = true;
+const mutations = new WeakSet<object>();
+axios.defaults.timeout = 15000;
+axios.interceptors.request.use((config) => {
+    if (!["get", "head", "options"].includes(config.method || "get")) {
+        mutations.add(config);
+        mutationStarted();
+    }
+    return config;
+});
+function completed(config: object | undefined) {
+    if (config && mutations.delete(config)) mutationFinished();
+}
+axios.interceptors.response.use(
+    (response) => {
+        completed(response.config);
+        return response;
+    },
+    (error) => {
+        // Keep the board in place on expiry. A deliberate refresh restores the intended game URL.
+        if ([401, 419].includes(error.response?.status))
+            needsRefresh("session");
+        completed(error.config);
+        return Promise.reject(error);
+    },
+);
 export const api = axios;
 export const errorMessage = (e: unknown): string =>
     axios.isAxiosError(e)

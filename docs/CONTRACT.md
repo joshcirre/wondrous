@@ -22,3 +22,10 @@ Lobby props add `active_games:[{code,name,time_control,phase,turn_player_id,turn
 
 
 `GET /replays` renders authenticated Inertia `ReplayArchive` with `{result, matches}`. `matches` is a Laravel paginator with 12 rows per page. Each row contains `{code,name,ranked,time_control,players,winner_id,finished_at,updated_at}` and no board or private draft data. Only the viewer's finished games are included, ordered by updated_at descending then id descending. Optional `?result=all|won|lost|draw` filters outcomes and persists across page links. `finished_at` uses settled_at, falling back to updated_at for legacy games. Lobby recent matches also sort by updated_at.
+
+
+## Practice and update notices
+
+`POST /games` accepts `mode: "multiplayer" | "practice"` (default multiplayer). Practice forces unranked/live without a deadline, resumes an existing unfinished practice game, and starts directly in draft against the computer. Game JSON, active-game entries, and replay archive entries include `mode`. Computer ID `-1` appears only in engine state; actions from clients always use their authenticated user. Computer event actors are null. All six human picks can come from the full roster; the computer has normal offers. Practice awards no stats, currency, or cards and does not block multiplayer creation/joining. Private replay access is unchanged.
+
+`GET /release` returns `{version:string}` with `Cache-Control: no-store, private`. Initial Inertia props include `release`. Version changes display an optional refresh prompt and never force an active game to reload. Reload resumes the same URL and persisted board; in-flight commands finish first. Session expiry requires explicit refresh/sign-in and preserves the intended game URL.

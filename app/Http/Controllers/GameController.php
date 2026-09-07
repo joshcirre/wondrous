@@ -19,19 +19,19 @@ class GameController extends Controller
         }
         $id = $request->user()->id;
         Game::where(fn ($q) => $q->where('host_id', $id)->orWhere('guest_id', $id))->where('turn_due_at', '<=', now())->where('phase', '!=', 'finished')->get()->each(fn ($g) => $matches->expire($g));
-        $games = Game::where('phase', 'lobby')->latest()->limit(30)->get()->map(fn ($g) => ['code' => $g->code, 'name' => $g->name, 'host' => $g->state['players'][0]['name'], 'ranked' => $g->ranked, 'time_control' => $g->time_control, 'created_at' => $g->created_at->diffForHumans()]);
+        $games = Game::where('mode', 'multiplayer')->where('phase', 'lobby')->latest()->limit(30)->get()->map(fn ($g) => ['code' => $g->code, 'name' => $g->name, 'mode' => $g->mode, 'host' => $g->state['players'][0]['name'], 'ranked' => $g->ranked, 'time_control' => $g->time_control, 'created_at' => $g->created_at->diffForHumans()]);
         $activeGames = Game::where(fn ($q) => $q->where('host_id', $id)->orWhere('guest_id', $id))->where('phase', '!=', 'finished')->latest()->get();
-        $active = $activeGames->firstWhere('time_control', 'live');
-        $activeGames = $activeGames->map(fn ($g) => ['code' => $g->code, 'name' => $g->name, 'time_control' => $g->time_control, 'phase' => $g->phase, 'turn_player_id' => $g->state['turn_player_id'], 'turn_due_at' => $g->turn_due_at?->toISOString(), 'ready' => $g->state['ready'], 'host_id' => $g->host_id, 'players' => $g->state['players']]);
-        $recent = Game::where(fn ($q) => $q->where('host_id', $id)->orWhere('guest_id', $id))->where('phase', 'finished')->latest('updated_at')->limit(5)->get()->map(fn ($g) => ['code' => $g->code, 'name' => $g->name, 'won' => $g->state['winner_id'] === $id, 'ranked' => $g->ranked, 'draw' => $g->state['winner_id'] === null, 'time_control' => $g->time_control]);
+        $active = $activeGames->first(fn ($g) => $g->mode === 'multiplayer' && $g->time_control === 'live');
+        $activeGames = $activeGames->map(fn ($g) => ['code' => $g->code, 'name' => $g->name, 'mode' => $g->mode, 'time_control' => $g->time_control, 'phase' => $g->phase, 'turn_player_id' => $g->state['turn_player_id'], 'turn_due_at' => $g->turn_due_at?->toISOString(), 'ready' => $g->state['ready'], 'host_id' => $g->host_id, 'players' => $g->state['players']]);
+        $recent = Game::where(fn ($q) => $q->where('host_id', $id)->orWhere('guest_id', $id))->where('phase', 'finished')->latest('updated_at')->limit(5)->get()->map(fn ($g) => ['code' => $g->code, 'name' => $g->name, 'mode' => $g->mode, 'won' => $g->state['winner_id'] === $id, 'ranked' => $g->ranked, 'draw' => $g->state['winner_id'] === null, 'time_control' => $g->time_control]);
 
         return Inertia::render('Lobby', ['catalog' => CharacterCatalog::all(), 'games' => $games, 'active' => $active?->code, 'active_games' => $activeGames, 'recent' => $recent]);
     }
 
     public function create(Request $r, MatchService $matches)
     {
-        $v = $r->validate(['name' => 'required|string|max:60', 'ranked' => 'required|boolean', 'time_control' => 'sometimes|required|in:live,correspondence']);
-        $g = $matches->create($r->user(), $v['name'], $v['ranked'], $v['time_control'] ?? 'live');
+        $v = $r->validate(['name' => 'required|string|max:60', 'ranked' => 'required|boolean', 'time_control' => 'sometimes|required|in:live,correspondence', 'mode' => 'sometimes|required|in:multiplayer,practice']);
+        $g = $matches->create($r->user(), $v['name'], $v['ranked'], $v['time_control'] ?? 'live', $v['mode'] ?? 'multiplayer');
 
         return response()->json(['code' => $g->code], 201);
     }
@@ -62,7 +62,7 @@ class GameController extends Controller
     private function find(Request $r, string $code): Game
     {
         $g = Game::where('code', strtoupper($code))->firstOrFail();
-        abort_unless($g->hasPlayer($r->user()->id) || $g->phase === 'lobby', 403);
+        abort_unless($g->hasPlayer($r->user()->id) || ($g->phase === 'lobby' && $g->mode !== 'practice'), 403);
 
         return app(MatchService::class)->expire($g);
     }
@@ -81,7 +81,7 @@ class GameController extends Controller
             $query->whereNull('state->winner_id');
         }
         $matches = $query->orderByDesc('updated_at')->orderByDesc('id')->paginate(12)->withQueryString()->through(fn ($game) => [
-            'code' => $game->code, 'name' => $game->name, 'ranked' => $game->ranked,
+            'code' => $game->code, 'name' => $game->name, 'ranked' => $game->ranked, 'mode' => $game->mode,
             'time_control' => $game->time_control, 'players' => $game->state['players'],
             'winner_id' => $game->state['winner_id'], 'finished_at' => ($game->settled_at ?? $game->updated_at)->toISOString(),
             'updated_at' => $game->updated_at->toISOString(),

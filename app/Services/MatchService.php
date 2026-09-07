@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Events\GameUpdated;
 use App\Events\LobbyUpdated;
 use App\Events\MatchAdvanced;
+use App\Game\ComputerOpponent;
 use App\Game\GameEngine;
 use App\Models\Game;
 use App\Models\User;
@@ -15,16 +16,32 @@ use Thunk\Verbs\Facades\Verbs;
 
 class MatchService
 {
-    public function __construct(private GameEngine $engine) {}
+    public function __construct(private GameEngine $engine, private ComputerOpponent $computer) {}
 
-    public function create(User $user, string $name, bool $ranked, string $timeControl = 'live'): Game
+    public function create(User $user, string $name, bool $ranked, string $timeControl = 'live', string $mode = 'multiplayer'): Game
     {
-        return Cache::lock('player-activity:'.$user->id, 15)->block(5, fn () => DB::transaction(function () use ($user, $name, $ranked, $timeControl) {
-            $active = Game::where('time_control', 'live')->where(fn ($q) => $q->where('host_id', $user->id)->orWhere('guest_id', $user->id))->where('phase', '!=', 'finished')->first();
+        return Cache::lock('player-activity:'.$user->id, 15)->block(5, fn () => DB::transaction(function () use ($user, $name, $ranked, $timeControl, $mode) {
+            $active = Game::where('mode', 'multiplayer')->where('time_control', 'live')->where(fn ($q) => $q->where('host_id', $user->id)->orWhere('guest_id', $user->id))->where('phase', '!=', 'finished')->first();
             abort_unless(in_array($timeControl, ['live', 'correspondence'], true), 422, 'Invalid time control.');
-            abort_if($timeControl === 'live' && $active, 422, 'Finish or leave your live match before creating another live match.');
-            $game = Game::create(['id' => (string) Str::ulid(), 'code' => strtoupper(Str::random(6)), 'name' => $name, 'ranked' => $timeControl === 'correspondence' ? false : $ranked, 'time_control' => $timeControl, 'host_id' => $user->id, 'phase' => 'lobby', 'state' => $this->engine->create($user->id, $user->name, $user->loadout ?? [])]);
-            $this->record($game, $user->id, 'created', [], $game->state);
+            abort_unless(in_array($mode, ['multiplayer', 'practice'], true), 422, 'Invalid game mode.');
+            if ($mode === 'practice') {
+                $timeControl = 'live';
+                $ranked = false;
+                $existing = Game::where('host_id', $user->id)->where('mode', 'practice')->where('phase', '!=', 'finished')->first();
+                if ($existing) {
+                    return $existing;
+                }
+            }
+            abort_if($mode === 'multiplayer' && $timeControl === 'live' && $active, 422, 'Finish or leave your live match before creating another live match.');
+            $game = Game::create(['id' => (string) Str::ulid(), 'code' => strtoupper(Str::random(6)), 'name' => $name, 'mode' => $mode, 'ranked' => $timeControl === 'correspondence' ? false : $ranked, 'time_control' => $timeControl, 'host_id' => $user->id, 'phase' => 'lobby', 'state' => $this->engine->create($user->id, $user->name, $user->loadout ?? [])]);
+            $state = $game->state;
+            $state['mode'] = $mode;
+            $this->record($game, $user->id, 'created', [], $state);
+            if ($mode === 'practice') {
+                $payload = ['id' => ComputerOpponent::ID, 'name' => 'Practice opponent', 'loadout' => []];
+                $state = $this->engine->apply($game->state, ComputerOpponent::ID, 'join', $payload);
+                $this->record($game, null, 'join', $payload, $state);
+            }
             event(new LobbyUpdated);
 
             return $game;
@@ -54,8 +71,9 @@ class MatchService
             }
             abort_unless($game->version === $version, 409, 'The board changed. Your view has been refreshed; choose your action again.');
             if ($type === 'join') {
+                abort_if($game->mode === 'practice', 403, 'Practice games are private.');
                 if ($game->time_control === 'live') {
-                    $active = Game::where('id', '!=', $game->id)->where('time_control', 'live')->where(fn ($q) => $q->where('host_id', $user->id)->orWhere('guest_id', $user->id))->where('phase', '!=', 'finished')->exists();
+                    $active = Game::where('id', '!=', $game->id)->where('time_control', 'live')->where('mode', 'multiplayer')->where(fn ($q) => $q->where('host_id', $user->id)->orWhere('guest_id', $user->id))->where('phase', '!=', 'finished')->exists();
                     abort_if($active, 422, 'Finish or leave your live match first.');
                 }
                 $payload = ['id' => $user->id, 'name' => $user->name, 'loadout' => $user->loadout ?? []];
@@ -70,8 +88,9 @@ class MatchService
             }
             $this->updateDeadline($game, $previous, $state);
             $this->record($game, $user->id, $type, $payload, $state);
+            $this->advanceComputer($game);
             event(new GameUpdated($game->id, $game->version));
-            if (in_array($type, ['join', 'resign']) || $state['phase'] === 'finished') {
+            if (in_array($type, ['join', 'resign']) || $game->phase === 'finished') {
                 event(new LobbyUpdated);
             }
 
@@ -80,6 +99,27 @@ class MatchService
         abort_if($expired, 409, 'The response deadline expired. This match has ended; refresh to see the result.');
 
         return $result;
+    }
+
+    /** Resolve a whole computer response atomically with the human command. No worker can get stranded on deploy. */
+    private function advanceComputer(Game $game): void
+    {
+        if ($game->mode !== 'practice') {
+            return;
+        }
+        // Six placements + ready, or move + attack/skill + end turn. Bound work under the match lock.
+        for ($step = 0; $step < 10; $step++) {
+            $command = $this->computer->choose($game->state);
+            if (! $command) {
+                return;
+            }
+            $state = $this->engine->apply($game->state, ComputerOpponent::ID, $command['type'], $command['payload']);
+            if ($state['phase'] === 'finished' && ! $game->settled_at) {
+                $state = $this->settle($game, $state);
+            }
+            $this->record($game, null, $command['type'], $command['payload'], $state);
+        }
+        throw new \LogicException('Computer response exceeded its action limit.');
     }
 
     /** Used on reads and by the scheduler; all expiration paths share the action lock. */
@@ -174,6 +214,12 @@ class MatchService
     private function settle(Game $game, array $state): array
     {
         $game->settled_at = now();
+        if ($game->mode === 'practice') {
+            $state['reward_candidates'] = [];
+            $state['rewards'] = [];
+
+            return $state;
+        }
         if ($game->phase !== 'battle' || ! $state['winner_id']) {
             return $state;
         }

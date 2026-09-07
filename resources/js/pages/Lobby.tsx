@@ -5,6 +5,7 @@ import {
     PlusIcon,
     TrophyIcon,
     UserGroupIcon,
+    BeakerIcon,
 } from "@heroicons/react/16/solid";
 import Shell, { Eyebrow, ErrorBanner } from "../components/Shell";
 import Deadline from "../components/Deadline";
@@ -29,6 +30,7 @@ export default function Lobby() {
             active_games: {
                 code: string;
                 name: string;
+                mode: "multiplayer" | "practice";
                 time_control: string;
                 phase: string;
                 turn_player_id: number | null;
@@ -66,6 +68,25 @@ export default function Lobby() {
             clearInterval(timer);
         };
     }, []);
+    const practice = active_games?.find((game) => game.mode === "practice");
+    const [practiceBusy, setPracticeBusy] = useState(false);
+    async function startPractice() {
+        if (practiceBusy) return;
+        setPracticeBusy(true);
+        setError("");
+        try {
+            const { data } = await api.post("/games", {
+                name: "Practice arena",
+                ranked: false,
+                mode: "practice",
+            });
+            router.visit(`/games/${data.code}`);
+        } catch (error) {
+            setError(errorMessage(error));
+        } finally {
+            setPracticeBusy(false);
+        }
+    }
     async function create() {
         setBusy(true);
         setError("");
@@ -157,10 +178,12 @@ export default function Lobby() {
                                                     ? `vs ${rival.name}`
                                                     : "Waiting for a challenger"}{" "}
                                                 ·{" "}
-                                                {g.time_control ===
-                                                "correspondence"
-                                                    ? "Correspondence"
-                                                    : "Live"}
+                                                {g.mode === "practice"
+                                                    ? "Solo practice"
+                                                    : g.time_control ===
+                                                        "correspondence"
+                                                      ? "Correspondence"
+                                                      : "Live"}
                                             </p>
                                         </div>
                                         <div>
@@ -213,6 +236,38 @@ export default function Lobby() {
                         Strategy, in every season.
                     </p>
                 </div>
+            </section>
+            <section
+                className="practice-entry"
+                aria-labelledby="practice-heading"
+            >
+                <div>
+                    <h2 id="practice-heading">
+                        <BeakerIcon /> A little room to experiment.
+                    </h2>
+                    <p>
+                        Build any six champions and try a strategy against the
+                        computer. No clock, no stakes. Your practice game saves
+                        after every action.
+                    </p>
+                </div>
+                {practice ? (
+                    <Link className="button" href={`/games/${practice.code}`}>
+                        Resume practice <ArrowRightIcon />
+                    </Link>
+                ) : (
+                    <button
+                        type="button"
+                        className="button"
+                        onClick={startPractice}
+                        disabled={practiceBusy}
+                    >
+                        {practiceBusy
+                            ? "Preparing your opponent…"
+                            : "Play against computer"}
+                        <ArrowRightIcon />
+                    </button>
+                )}
             </section>
             <div className="page-heading" id="arena-settings">
                 <div>

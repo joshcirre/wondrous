@@ -58,6 +58,7 @@ class CollectionController extends Controller
         return Cache::lock('claim:'.$code, 15)->block(5, fn () => DB::transaction(function () use ($r, $code, $v) {
             $g = Game::where('code', strtoupper($code))->lockForUpdate()->firstOrFail();
             $id = $r->user()->id;
+            abort_if($g->mode === 'practice', 422, 'Practice games do not award cards or currency.');
             abort_unless($g->state['phase'] === 'finished' && $g->state['winner_id'] === $id, 403);
             abort_unless($g->settled_at && ($g->state['turn_number'] ?? 0) >= 9, 422, 'Complete at least eight battle turns to earn a character.');
             abort_if(in_array($id, $g->claims ?? []), 422, 'Your reward has already been claimed.');

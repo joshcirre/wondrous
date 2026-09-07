@@ -3406,3 +3406,151 @@ label {
 .auth-form-area:not(.recovery-page) {
     background: #1f1b15;
 }
+
+/* Session continuity stays outside the page tree, including focus and fullscreen views. */
+.release-notice {
+    position: fixed;
+    z-index: 1000;
+    right: 20px;
+    bottom: 20px;
+    width: min(460px, calc(100vw - 40px));
+    padding: 18px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    font-size: 1rem;
+}
+.release-notice strong {
+    font-weight: 600;
+}
+.release-notice p {
+    color: var(--muted);
+    margin: 8px 0 16px;
+    text-wrap: pretty;
+}
+.release-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+.release-actions svg,
+.practice-entry svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+}
+.release-notice.is-deferred {
+    width: auto;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 14px;
+}
+.practice-entry {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 28px;
+    padding: 28px 0;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+}
+.practice-entry > div {
+    min-width: 0;
+}
+.practice-entry > .button {
+    flex-shrink: 0;
+}
+.practice-entry h2 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 1.4rem;
+    font-weight: 500;
+    text-wrap: balance;
+}
+.practice-entry p {
+    max-width: 65ch;
+    color: var(--muted);
+    margin: 10px 0 0;
+    text-wrap: pretty;
+}
+.practice-notice {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--line);
+}
+.practice-notice p {
+    color: var(--muted);
+    margin: 0;
+    max-width: 75ch;
+}
+.practice-notice a {
+    flex-shrink: 0;
+}
+.continuity-notice {
+    padding: 14px 18px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    border-radius: 8px;
+}
+.draft-offers.practice-offers {
+    max-width: 1100px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+}
+.draft-offers.practice-offers .character-card {
+    display: block;
+}
+.draft-offers.practice-offers .card-art {
+    aspect-ratio: 1.4;
+    min-height: 0;
+    height: auto;
+}
+.draft-offers.practice-offers .card-copy {
+    padding: 12px;
+}
+.draft-room:has(.practice-offers) .draft-confirm {
+    position: sticky;
+    bottom: 12px;
+    z-index: 5;
+    background: var(--surface-2);
+    padding: 14px 18px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    max-width: 1100px;
+}
+@media (max-width: 760px) {
+    .practice-entry,
+    .practice-notice {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 16px;
+    }
+    .practice-entry p,
+    .practice-notice p,
+    .release-notice {
+        font-size: 16px;
+    }
+    .draft-offers.practice-offers {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+    }
+    .draft-room:has(.practice-offers) .draft-confirm {
+        flex-direction: column;
+        gap: 10px;
+        align-items: stretch;
+    }
+    .draft-room:has(.practice-offers) .draft-confirm p {
+        font-size: 16px;
+        margin: 0;
+    }
+    .release-notice {
+        right: 12px;
+        bottom: 12px;
+        width: calc(100vw - 24px);
+    }
+}

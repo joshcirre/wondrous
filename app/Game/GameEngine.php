@@ -48,7 +48,7 @@ final class GameEngine
         if ($type === 'resign') {
             $s['winner_id'] = $this->opponent($s, $actorId);
             $s['phase'] = 'finished';
-            $this->log($s, 'Player '.$actorId.' resigned.');
+            $this->log($s, ($actorId === ComputerOpponent::ID ? 'Practice opponent' : 'Player '.$actorId).' resigned.');
 
             return $s;
         }
@@ -63,7 +63,7 @@ final class GameEngine
                 $s['reward_candidates'][$actorId][] = $id;
             }
             $s['offers'][$actorId] = $this->offers($s, $actorId);
-            $this->log($s, 'Player '.$actorId.' drafted '.CharacterCatalog::get($id)['name'].'.');
+            $this->log($s, ($actorId === ComputerOpponent::ID ? 'Practice opponent' : 'Player '.$actorId).' drafted '.CharacterCatalog::get($id)['name'].'.');
             $s['turn_player_id'] = $this->opponent($s, $actorId);
             if (count($s['draft_picks'][$s['host_id']]) === 6 && count($s['draft_picks'][$actorId]) === 6 && array_sum(array_map('count', $s['draft_picks'])) === 12) {
                 $s['phase'] = 'deployment';
@@ -306,7 +306,7 @@ final class GameEngine
                 $s['phase'] = 'finished';
                 $s['winner_id'] = $this->opponent($s, $p['id']);
                 $s['turn_player_id'] = null;
-                $this->log($s, 'Player '.$s['winner_id'].' wins by elimination.');
+                $this->log($s, ($s['winner_id'] === ComputerOpponent::ID ? 'Practice opponent' : 'Player '.$s['winner_id']).' wins by elimination.');
 
                 return;
             }
@@ -433,6 +433,9 @@ final class GameEngine
     private function offers(array $s, int $id): array
     {
         $available = array_values(array_diff($s['pool'][$id], $s['draft_picks'][$id]));
+        if (($s['mode'] ?? 'multiplayer') === 'practice' && $id === $s['host_id']) {
+            return $available;
+        }
         $offers = [];
         // A chosen specialist is guaranteed in the first offer; all players retain the same full pool.
         if (! $s['draft_picks'][$id] && $s['loadouts'][$id]) {

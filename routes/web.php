@@ -6,8 +6,11 @@ use App\Http\Controllers\CollectionController;
 use App\Http\Controllers\GameController;
 use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\ProfileController;
+use App\Support\ReleaseVersion;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
+
+Route::get('/release', fn (ReleaseVersion $release) => response()->json(['version' => $release->current()])->header('Cache-Control', 'no-store, private'));
 
 Route::get('/', [GameController::class, 'lobby'])->name('home');
 Route::get('/login', fn () => redirect('/'))->name('login');

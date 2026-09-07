@@ -46,3 +46,15 @@ Automated coverage additionally verifies illegal actions, privacy, reward idempo
 - PHP: 53 tests / 729 assertions; TypeScript, Pint and production build pass. Remaining 3D bundle-size/Three.Clock warnings are upstream/rendering observations, not application errors.
 
 Final production smoke: temporarily disabled Vite hot marker, loaded the compiled app bundle, and rendered the replay canvas at 1440 × 1000 with no application console errors; restored development hot marker.
+
+## Practice and deployment continuity (2026-09-07)
+
+Verified against an isolated SQLite preview database at localhost, with real browser session cookies:
+
+- Registered a test account, opened Play against computer, and drafted six distinct champions from the full roster. The computer completed its draft and formation automatically.
+- Locked formation and ended a turn. The computer moved its ranger and used Piercing Shot; control returned to the human on turn 3.
+- Simulated a newer `/release` response while the game was open. The optional prompt appeared without navigation; Later collapsed it.
+- Delayed an action request and asserted Refresh and resume was disabled during the pending command. After the response, refreshed and verified the same game URL and turn 3 were restored.
+- Simulated a 503 on board polling. The saved board stayed visible with a reconnect notice, then recovered after the endpoint became available.
+- Inspected 1440×1000 desktop and 390×844 mobile screenshots. The mobile update prompt remained usable and the page had no horizontal overflow.
+- Screenshots are local artifacts in `output/playwright/` (gitignored). The injected 503 accounts for the expected browser console error during reconnection testing.

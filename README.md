@@ -61,4 +61,11 @@ Tests cover engine rules, HTTP match lifecycle, auth/privacy, stale and rejected
 - [Complete game rules](docs/RULES.md)
 - [Generated artwork prompts](docs/asset-prompts.md)
 
-No production deployment has been made. Initial balance requires playtesting; rating and collection ownership grant no permanent combat stats. No AI opponent, automated coaching, automatic matchmaking, live-game turn clock, spectators, chat, or payments in this MVP. Local name filtering is a baseline, not comprehensive contextual moderation.
+Initial balance requires playtesting; rating and collection ownership grant no permanent combat stats. The practice opponent uses a basic tactical search. No automated coaching, automatic matchmaking, live-game turn clock, spectators, chat, or payments in this MVP. Local name filtering is a baseline, not comprehensive contextual moderation.
+
+
+## Solo practice and safe updates
+
+Choose **Play against computer** in the arena to start a private practice game. Pick any six champions, test your formation, and fight under the normal combat rules. One practice game can remain open alongside multiplayer matches; use **Resume practice** to return. Practice has no timer or rewards and does not affect ratings or win/loss records. End practice to review the replay and try a new team.
+
+After future deployments, an **Update is ready** prompt offers **Refresh and resume** or **Later**. It preserves the current URL and saved board, waits for pending commands, and never retries an action automatically. Connection interruptions retain the last saved board while polling reconnects. See `docs/LARAVEL-CLOUD.md` for the session and backwards-compatibility requirements that keep this safe.

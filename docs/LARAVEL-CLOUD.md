@@ -24,3 +24,8 @@ Official reference: [Laravel Cloud managed WebSockets](https://laravel.com/blog/
 Set a production mail transport and sender (`MAIL_MAILER`, provider credentials, `MAIL_FROM_ADDRESS`, `MAIL_FROM_NAME`) before exposing password recovery publicly. The local log driver intentionally does not deliver email. Recovery uses Laravel's standard password broker with expiring single-use tokens. Test delivery and reset in the deployed environment. Registration requires username, display name, email and confirmed password; login accepts username only. Profile email changes require the current password.
 
 Scheduler API reference: [Laravel scheduling frequencies](https://api.laravel.com/docs/13.x/Illuminate/Console/Scheduling/ManagesFrequencies.html).
+
+
+## Updating without interrupting games
+
+Keep the existing APP_KEY, shared session storage, cookie settings, and JSON session serialization across releases. Do not run session/cache flushes, reset migrations, or seed commands during deploy. The build generates the release marker automatically; `/release` must bypass CDN caching. Use additive migrations and preserve state/API compatibility for already-open clients. The app offers Refresh and resume after detecting a new release, retains the current board during reconnects, and prevents refresh during an in-flight command. Verify updates with a game open in another browser tab: dismiss the prompt, finish a move, refresh, and confirm the same game/version remains available.
