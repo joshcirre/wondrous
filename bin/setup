@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+WONDROUS_PHP="${WONDROUS_PHP:-php}"
+if ! "$WONDROUS_PHP" -v >/dev/null 2>&1; then
+  if [ -x /opt/homebrew/opt/php@8.4/bin/php ]; then WONDROUS_PHP=/opt/homebrew/opt/php@8.4/bin/php; else echo 'PHP 8.4.1+ is required. Set WONDROUS_PHP to its executable.' >&2; exit 1; fi
+fi
+export PATH="$(dirname "$WONDROUS_PHP"):$PATH"
+composer install --no-interaction
+if [ ! -f .env ]; then cp .env.example .env; fi
+if ! grep -Eq '^APP_KEY=base64:.+' .env; then "$WONDROUS_PHP" artisan key:generate; fi
+if [ ! -f database/database.sqlite ]; then touch database/database.sqlite; fi
+"$WONDROUS_PHP" artisan migrate --no-interaction
+npm ci
+npm run build
