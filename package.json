@@ -2,12 +2,12 @@
   "$schema": "https://www.schemastore.org/package.json",
   "private": true,
   "type": "module",
-    "scripts": {
-        "build": "vite build",
-        "dev": "vite",
-        "typecheck": "tsc --noEmit",
-        "test:js": "node --experimental-strip-types --test tests/js/boardClick.test.ts"
-    },
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite",
+    "typecheck": "tsc --noEmit",
+    "test:js": "node --experimental-strip-types --test tests/js/boardClick.test.ts"
+  },
   "devDependencies": {
     "@tailwindcss/vite": "^4.0.0",
     "@types/react": "^19.2.18",
