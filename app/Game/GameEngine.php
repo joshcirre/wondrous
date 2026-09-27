@@ -243,8 +243,8 @@ final class GameEngine
             'owner_id' => $s['units'][$i]['owner_id'],
             'skill' => $c['skill']['name'],
             'target_ids' => $targetIds,
-            'amounts' => $amounts,
-            'statuses' => $statuses,
+            'amounts' => $amounts === [] ? new \stdClass : $amounts,
+            'statuses' => $statuses === [] ? new \stdClass : $statuses,
         ]);
     }
 
