@@ -10,7 +10,10 @@ export type BoardHighlight = { x: number; y: number; kind?: string };
 export type BoardDecision =
     | { type: "tile"; x: number; y: number }
     | { type: "select"; unitId: string }
+    | { type: "deselect" }
     | { type: "none" };
+
+export type SelectedUnit = { id: string; x: number; y: number };
 
 export function collectBoardHits(
     intersections: Array<{ object: { userData: Record<string, unknown> } }>,
@@ -41,21 +44,48 @@ export function collectBoardHits(
     return hits;
 }
 
+function isOwnTile(
+    selected: SelectedUnit | null | undefined,
+    x: number,
+    y: number,
+): boolean {
+    return Boolean(selected && selected.x === x && selected.y === y);
+}
+
 export function resolveBoardClick(
     hits: BoardHit[],
     highlights: BoardHighlight[],
+    selected?: SelectedUnit | null,
 ): BoardDecision {
-    const highlighted = new Set(highlights.map((h) => `${h.x},${h.y}`));
-    const preferred = hits.find((hit) => highlighted.has(`${hit.x},${hit.y}`));
+    const highlightAt = new Map(
+        highlights.map((highlight) => [`${highlight.x},${highlight.y}`, highlight]),
+    );
+    const preferred = hits.find((hit) =>
+        highlightAt.has(`${hit.x},${hit.y}`),
+    );
     if (preferred) {
+        const kind = highlightAt.get(`${preferred.x},${preferred.y}`)?.kind;
+        if (
+            isOwnTile(selected, preferred.x, preferred.y) &&
+            kind !== "attack" &&
+            kind !== "skill"
+        ) {
+            return { type: "deselect" };
+        }
         return { type: "tile", x: preferred.x, y: preferred.y };
     }
     const pawn = hits.find((hit) => hit.role === "pawn" && hit.unitId);
     if (pawn?.unitId) {
+        if (selected && pawn.unitId === selected.id) {
+            return { type: "deselect" };
+        }
         return { type: "select", unitId: pawn.unitId };
     }
     const tile = hits.find((hit) => hit.role === "tile");
     if (tile) {
+        if (isOwnTile(selected, tile.x, tile.y)) {
+            return { type: "deselect" };
+        }
         return { type: "tile", x: tile.x, y: tile.y };
     }
     return { type: "none" };

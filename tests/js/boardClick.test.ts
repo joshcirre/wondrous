@@ -31,6 +31,51 @@ describe("resolveBoardClick", () => {
         assert.deepEqual(decision, { type: "tile", x: 3, y: 4 });
     });
 
+    it("selects a champion when nothing is selected", () => {
+        const decision = resolveBoardClick(
+            [
+                { role: "pawn", x: 4, y: 7, unitId: "cleric-e1" },
+                { role: "tile", x: 4, y: 7 },
+            ],
+            [],
+            null,
+        );
+
+        assert.deepEqual(decision, { type: "select", unitId: "cleric-e1" });
+    });
+
+    it("swaps by sending deploy onto another friendly highlighted tile", () => {
+        const decision = resolveBoardClick(
+            [
+                { role: "pawn", x: 4, y: 7, unitId: "cleric-e1" },
+                { role: "tile", x: 4, y: 7 },
+            ],
+            [
+                { x: 3, y: 7, kind: "move" },
+                { x: 4, y: 7, kind: "move" },
+            ],
+            { id: "ranger-d1", x: 3, y: 7 },
+        );
+
+        assert.deepEqual(decision, { type: "tile", x: 4, y: 7 });
+    });
+
+    it("deselects when the selected champion is clicked again", () => {
+        const decision = resolveBoardClick(
+            [
+                { role: "pawn", x: 4, y: 7, unitId: "cleric-e1" },
+                { role: "tile", x: 4, y: 7 },
+            ],
+            [
+                { x: 3, y: 7, kind: "move" },
+                { x: 4, y: 7, kind: "move" },
+            ],
+            { id: "cleric-e1", x: 4, y: 7 },
+        );
+
+        assert.deepEqual(decision, { type: "deselect" });
+    });
+
     it("selects a champion when the click only hits that champion's own base", () => {
         const decision = resolveBoardClick(
             [
