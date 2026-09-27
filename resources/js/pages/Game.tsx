@@ -239,7 +239,7 @@ export default function Game() {
         targets,
         character,
     ]);
-    function select(id: string) {
+    function select(id: string | null) {
         setSelectedId(id);
         setMode("move");
         setDestination("");
