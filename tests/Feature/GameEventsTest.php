@@ -153,4 +153,84 @@ class GameEventsTest extends TestCase
         $events = $this->events($host, $game->fresh(), 0)['events'];
         self::assertSame([], $events);
     }
+
+    public function test_events_without_since_returns_every_event_from_version_one(): void
+    {
+        $host = User::factory()->create();
+        $game = Game::where('code', $this->actingAs($host)->postJson('/games', ['name' => 'Default since', 'ranked' => false])->json('code'))->firstOrFail();
+        $this->seedEventRecords($game, [1, 2, 1]);
+        $all = $this->actingAs($host)->getJson('/games/'.$game->code.'/events')->assertOk()->json('events');
+        $fromZero = $this->events($host, $game, 0)['events'];
+        self::assertSame($fromZero, $all);
+        self::assertNotEmpty($all);
+        self::assertSame(1, $all[0]['version']);
+        self::assertSame(range(1, 3), array_values(array_unique(array_column($all, 'version'))));
+        self::assertCount(4, $all);
+    }
+
+    public function test_events_page_stops_at_record_boundary_and_resumes_without_skipping(): void
+    {
+        $host = User::factory()->create();
+        $game = Game::where('code', $this->actingAs($host)->postJson('/games', ['name' => 'Page boundary', 'ranked' => false])->json('code'))->firstOrFail();
+        $counts = array_fill(0, 99, 1);
+        $counts[] = 3;
+        $counts[] = 2;
+        $this->seedEventRecords($game, $counts);
+        $expected = [];
+        foreach ($counts as $version => $count) {
+            for ($index = 0; $index < $count; $index++) {
+                $expected[] = ['version' => $version + 1, 'index' => $index, 'type' => 'turn_start', 'player_id' => $host->id, 'turn_number' => ($version + 1) * 10 + $index];
+            }
+        }
+        $seen = [];
+        $since = 0;
+        $pages = 0;
+        do {
+            $page = $this->events($host, $game, $since)['events'];
+            self::assertNotEmpty($page);
+            $last = $page[array_key_last($page)];
+            $versions = array_column($page, 'version');
+            self::assertSame($last['version'], max($versions));
+            self::assertSame(array_values(array_filter($expected, fn ($e) => $e['version'] > $since && $e['version'] <= $last['version'])), $page);
+            $seen = array_merge($seen, $page);
+            $since = $last['version'];
+            $pages++;
+        } while ($since < $game->version && $pages < 5);
+        self::assertSame($expected, $seen);
+        self::assertCount(104, $seen);
+        self::assertGreaterThan(100, count(array_filter($seen, fn ($e) => $e['version'] <= 100)));
+        self::assertCount(3, array_filter($seen, fn ($e) => $e['version'] === 100));
+        self::assertGreaterThan(1, $pages);
+    }
+
+    /** @param list<int> $perVersionCounts */
+    private function seedEventRecords(Game $game, array $perVersionCounts): void
+    {
+        DB::table('game_records')->where('game_id', $game->id)->delete();
+        $state = $game->state;
+        $state['phase'] = 'battle';
+        $rows = [];
+        foreach ($perVersionCounts as $i => $count) {
+            $version = $i + 1;
+            $events = [];
+            for ($index = 0; $index < $count; $index++) {
+                $events[] = ['type' => 'turn_start', 'player_id' => $game->host_id, 'turn_number' => $version * 10 + $index];
+            }
+            $state['events'] = $events;
+            $rows[] = [
+                'game_id' => $game->id,
+                'version' => $version,
+                'actor_id' => $game->host_id,
+                'action' => 'end_turn',
+                'payload' => json_encode([]),
+                'state' => json_encode($state),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+        }
+        DB::table('game_records')->insert($rows);
+        $game->version = count($perVersionCounts);
+        $game->state = $state;
+        $game->save();
+    }
 }

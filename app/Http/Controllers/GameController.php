@@ -52,7 +52,7 @@ class GameController extends Controller
 
     public function events(Request $r, string $code)
     {
-        $since = (int) $r->validate(['since' => 'sometimes|integer|min:0'])['since'] ?? 0;
+        $since = (int) ($r->validate(['since' => 'sometimes|integer|min:0'])['since'] ?? 0);
         $g = Game::where('code', strtoupper($code))->firstOrFail();
         abort_unless($g->hasPlayer($r->user()->id), 403);
         $g = app(MatchService::class)->expire($g);
@@ -63,9 +63,9 @@ class GameController extends Controller
             $state = json_decode($record->state, true) ?? [];
             foreach (array_values(Game::visibleEvents($state['events'] ?? [], $viewer, $g->state)) as $index => $event) {
                 $events[] = ['version' => (int) $record->version, 'index' => $index] + $event;
-                if (count($events) >= Game::EVENTS_PAGE) {
-                    return response()->json(['events' => $events]);
-                }
+            }
+            if (count($events) >= Game::EVENTS_PAGE) {
+                return response()->json(['events' => $events]);
             }
         }
 
