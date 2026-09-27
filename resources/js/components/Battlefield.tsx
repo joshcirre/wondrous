@@ -35,7 +35,7 @@ type Props = {
     units: Unit[];
     viewerId: number;
     selectedId: string | null;
-    onSelect: (id: string) => void;
+    onSelect: (id: string | null) => void;
     onTile: (x: number, y: number) => void;
     highlights?: Array<{ x: number; y: number; kind?: string }>;
     deployment?: boolean;
@@ -654,12 +654,17 @@ function Scene({
     const onBoardPointer = (e: ThreeEvent<MouseEvent>) => {
         e.stopPropagation();
         if (!interactive) return;
+        const selected = units.find((unit) => unit.id === selectedId);
         const decision = resolveBoardClick(
             collectBoardHits(e.intersections),
             highlights,
+            selected
+                ? { id: selected.id, x: selected.x, y: selected.y }
+                : null,
         );
         if (decision.type === "tile") onTile(decision.x, decision.y);
         else if (decision.type === "select") onSelect(decision.unitId);
+        else if (decision.type === "deselect") onSelect(null);
     };
     return (
         <>
