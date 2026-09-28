@@ -66,9 +66,15 @@ export function GoldRing({
     color?: string;
 }) {
     return (
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, y, 0]}>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, y, 0]} renderOrder={2}>
             <ringGeometry args={[radius, radius + width, 40]} />
-            <meshBasicMaterial color={color} transparent opacity={opacity} />
+            <meshBasicMaterial
+                color={color}
+                transparent
+                opacity={opacity}
+                depthTest={false}
+                depthWrite={false}
+            />
         </mesh>
     );
 }

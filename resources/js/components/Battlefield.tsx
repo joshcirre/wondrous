@@ -219,12 +219,12 @@ function Pawn({
                 >
                     {selected && unit.hp > 0 && (unit.recovery ?? 0) === 0 && (
                         <>
-                            <GoldRing radius={0.37} width={0.07} y={0.02} />
+                            <GoldRing radius={0.38} width={0.08} y={0.055} />
                             <GoldRing
-                                radius={0.48}
-                                width={0.045}
-                                y={0.018}
-                                opacity={0.35}
+                                radius={0.5}
+                                width={0.05}
+                                y={0.05}
+                                opacity={0.4}
                             />
                         </>
                     )}
@@ -239,13 +239,16 @@ function Pawn({
                         !selected && (
                             <mesh
                                 rotation={[-Math.PI / 2, 0, 0]}
-                                position={[0, 0.02, 0]}
+                                position={[0, 0.05, 0]}
+                                renderOrder={1}
                             >
                                 <ringGeometry args={[0.32, 0.38, 32]} />
                                 <meshBasicMaterial
                                     color={friendly ? teal : teamRed}
                                     transparent
                                     opacity={0.85}
+                                    depthTest={false}
+                                    depthWrite={false}
                                 />
                             </mesh>
                         )
