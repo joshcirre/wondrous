@@ -183,6 +183,34 @@ class FirstMatchTest extends TestCase
         $this->actingAs($user)->getJson('/games/'.$game->code.'/state')->assertOk()->assertJsonPath('game.lesson', null);
     }
 
+    public function test_player_squad_is_the_starter_standards_with_arcanist_not_pikeman_or_revenant(): void
+    {
+        $ids = array_column(FirstMatch::playerSquad(), 'character_id');
+        self::assertSame(
+            ['arcanist', 'warden', 'knight', 'ranger', 'cleric', 'rogue'],
+            $ids,
+        );
+        self::assertSame(['x' => 1, 'y' => 7, 'facing' => 'north'], array_intersect_key(
+            FirstMatch::playerSquad()[0],
+            array_flip(['x', 'y', 'facing']),
+        ));
+        foreach (['pikeman', 'revenant', 'druid', 'herald'] as $id) {
+            self::assertNotContains($id, $ids);
+        }
+        foreach ($ids as $id) {
+            self::assertNotContains($id, ['pikeman', 'frostweaver']);
+        }
+
+        $user = User::factory()->create();
+        $game = $this->firstMatch($user);
+        $host = array_column(array_filter($game->state['units'], fn ($unit) => $unit['owner_id'] === $user->id), 'character_id');
+        self::assertSame($ids, $host);
+        $arcanist = $this->unit($game, $user->id, 'arcanist');
+        self::assertSame(1, $arcanist['x']);
+        self::assertSame(7, $arcanist['y']);
+        self::assertSame('north', $arcanist['facing']);
+    }
+
     public function test_computer_squad_never_contains_excluded_champions(): void
     {
         foreach (FirstMatch::computerSquad() as $placed) {
@@ -225,7 +253,7 @@ class FirstMatchTest extends TestCase
         self::assertNotNull($game->settled_at);
         $this->assertDatabaseCount('reward_transactions', 0);
         $this->postJson('/games/'.$game->code.'/claim', ['character_id' => 'pyromancer'])->assertUnprocessable();
-        $this->getJson('/games/'.$game->code.'/replay-data')->assertOk()->assertJsonPath('game.state.draft_picks.'.$user->id.'.0', 'pikeman');
+        $this->getJson('/games/'.$game->code.'/replay-data')->assertOk()->assertJsonPath('game.state.draft_picks.'.$user->id.'.0', 'arcanist');
     }
 
     public function test_first_match_is_practice_only_and_new_players_see_the_entry(): void
