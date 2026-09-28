@@ -365,7 +365,7 @@ class ProgressionDisclosureTest extends TestCase
         self::assertSame(2, Progression::LOADOUTS_AFTER);
         self::assertSame(5, Progression::COMPETITIVE_AFTER);
         self::assertSame(9, MatchCredit::MIN_TURN);
-        self::assertSame('Ranked unlocks after your first win or 5 full matches.', Progression::RANKED_HINT);
+        self::assertSame('Win a match, or finish 5 matches that last past turn 8, to unlock Ranked.', Progression::RANKED_HINT);
         self::assertSame('Loadouts unlock after your third match.', Progression::LOADOUTS_HINT);
     }
 }
