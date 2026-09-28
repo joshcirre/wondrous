@@ -118,10 +118,17 @@ class FirstMatchTest extends TestCase
 
         $rogue = $this->unit($game, $user->id, 'rogue');
         $enemyKnight = $this->unit($game, ComputerOpponent::ID, 'knight');
-        $before = $enemyKnight['hp'];
-        $this->act($game, $user, 'move', ['unit_id' => $rogue['id'], 'x' => 6, 'y' => 4]);
-        $this->act($game, $user, 'skill', ['unit_id' => $rogue['id'], 'target_id' => $enemyKnight['id']]);
-        self::assertSame($before - 52, $this->unit($game, ComputerOpponent::ID, 'knight')['hp']);
+        foreach (FirstMatch::playerScript()[3] as $step) {
+            $payload = ['unit_id' => $rogue['id']];
+            if ($step['type'] === 'move') {
+                $payload += ['x' => $step['x'], 'y' => $step['y']];
+            } else {
+                $payload['target_id'] = $enemyKnight['id'];
+            }
+            $this->act($game, $user, $step['type'], $payload);
+        }
+        self::assertTrue(collect($game->state['events'])->contains(fn ($event) => ($event['type'] ?? '') === 'attack'));
+        self::assertFalse(collect($game->state['events'])->contains(fn ($event) => ($event['type'] ?? '') === 'skill'));
         $this->act($game, $user, 'end_turn');
 
         self::assertSame(['x' => 2, 'y' => 0], ['x' => $this->unit($game, ComputerOpponent::ID, 'druid')['x'], 'y' => $this->unit($game, ComputerOpponent::ID, 'druid')['y']]);
@@ -181,6 +188,16 @@ class FirstMatchTest extends TestCase
         $this->act($game, $user, 'end_turn');
         self::assertNull($game->state['lesson_step']);
         $this->actingAs($user)->getJson('/games/'.$game->code.'/state')->assertOk()->assertJsonPath('game.lesson', null);
+    }
+
+    public function test_turn_three_script_uses_no_skill(): void
+    {
+        $steps = FirstMatch::playerScript()[3] ?? [];
+        self::assertNotEmpty($steps);
+        foreach ($steps as $step) {
+            self::assertNotSame('skill', $step['type']);
+        }
+        self::assertContains('attack', array_column($steps, 'type'));
     }
 
     public function test_lesson_three_body_points_at_the_chip_not_backstab(): void

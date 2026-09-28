@@ -1310,7 +1310,8 @@ export default function Game() {
                                         <p className="passive">
                                             {character.passive}
                                         </p>
-                                        {state.phase === "battle" && (
+                                        {state.phase === "battle" &&
+                                            cues.skill_strip && (
                                             <p className="skill-description">
                                                 {character.skill.name}
                                                 {": "}

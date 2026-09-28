@@ -47,6 +47,22 @@ final class FirstMatch
     }
 
     /**
+     * Player's intended opening. Turn 3 is a basic rear attack, not Backstab,
+     * so Shield Bash on turn 4 is the first skill they see.
+     *
+     * @return array<int, list<array{type: string, character_id: string, x?: int, y?: int}>>
+     */
+    public static function playerScript(): array
+    {
+        return [
+            3 => [
+                ['type' => 'move', 'character_id' => 'rogue', 'x' => 6, 'y' => 4],
+                ['type' => 'attack', 'character_id' => 'rogue'],
+            ],
+        ];
+    }
+
+    /**
      * Scripted computer commands for its first three turns, still applied through the engine.
      * Turn 1 retreats the wounded Warden (does not punish the resting attacker).
      * Turn 2 turns the Knight's back toward the player's Rogue.
