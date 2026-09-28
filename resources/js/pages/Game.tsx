@@ -38,7 +38,34 @@ import {
     createAnimationQueue,
     detectConfirmedSwap,
     type AnimationQueue,
+    type QueueView,
 } from "../lib/animationQueue";
+type AnimHud = {
+    turnBanner: string;
+    floats: string;
+    deathBanners: string;
+    beat: string;
+    floatKind: string;
+    floatTitle: string;
+    floatValue: string;
+    floatChance: string;
+};
+function snapshotHud(view: QueueView): AnimHud & { inputLocked: boolean } {
+    const primary = view.floats[0];
+    return {
+        inputLocked: view.inputLocked,
+        turnBanner: view.turnBanner?.text ?? "",
+        floats: view.floats
+            .map((item) => `${item.kind}:${item.value ?? item.chance ?? ""}`)
+            .join(","),
+        deathBanners: view.deathBanners.map((item) => item.unitId).join(","),
+        beat: view.currentType ?? "",
+        floatKind: primary?.kind ?? "",
+        floatTitle: primary?.title ?? "",
+        floatValue: primary?.value !== undefined ? String(primary.value) : "",
+        floatChance: primary?.chance !== undefined ? String(primary.chance) : "",
+    };
+}
 import { cameraForHome, fadedUnitIds } from "../lib/boardFade";
 import { cueVisibility } from "../lib/reducedBoard";
 const Battlefield = lazy(() => import("../components/Battlefield"));
@@ -66,7 +93,7 @@ export default function Game() {
     const [animLocked, setAnimLocked] = useState(false);
     const [reducedMotionOn, setReducedMotionOn] = useState(false);
     const animLockedRef = useRef(false);
-    const [animHud, setAnimHud] = useState({
+    const [animHud, setAnimHud] = useState<AnimHud>({
         turnBanner: "",
         floats: "",
         deathBanners: "",
@@ -176,6 +203,61 @@ export default function Game() {
             unsubscribe?.();
         };
     }, []);
+    const applyHud = useCallback((view: QueueView) => {
+        const snap = snapshotHud(view);
+        if (snap.inputLocked !== animLockedRef.current) {
+            animLockedRef.current = snap.inputLocked;
+            setAnimLocked(snap.inputLocked);
+        }
+        setAnimHud((prev) => {
+            const next: AnimHud = {
+                turnBanner: snap.turnBanner,
+                floats: snap.floats || prev.floats,
+                deathBanners: snap.deathBanners,
+                beat: snap.beat,
+                floatKind: snap.floatKind || prev.floatKind,
+                floatTitle: snap.floatTitle || prev.floatTitle,
+                floatValue: snap.floatValue || prev.floatValue,
+                floatChance: snap.floatChance || prev.floatChance,
+            };
+            if (snap.floatTitle) {
+                window.clearTimeout(floatLinger.current);
+                floatLinger.current = window.setTimeout(() => {
+                    setAnimHud((held) => ({
+                        ...held,
+                        floats: "",
+                        floatKind: "",
+                        floatTitle: "",
+                        floatValue: "",
+                        floatChance: "",
+                    }));
+                }, 3000);
+            }
+            if (
+                prev.turnBanner === next.turnBanner &&
+                prev.floats === next.floats &&
+                prev.deathBanners === next.deathBanners &&
+                prev.beat === next.beat &&
+                prev.floatKind === next.floatKind &&
+                prev.floatTitle === next.floatTitle &&
+                prev.floatValue === next.floatValue &&
+                prev.floatChance === next.floatChance
+            ) {
+                return prev;
+            }
+            return next;
+        });
+    }, []);
+    useEffect(() => {
+        let frame = 0;
+        const tick = (now: number) => {
+            const queue = queueRef.current;
+            if (queue) applyHud(queue.advance(now));
+            frame = requestAnimationFrame(tick);
+        };
+        frame = requestAnimationFrame(tick);
+        return () => cancelAnimationFrame(frame);
+    }, [applyHud]);
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         const forced =
@@ -226,14 +308,17 @@ export default function Game() {
                 }
                 if (events.length) {
                     queue.pushEvents(events, swap ? {} : { units: from });
+                    applyHud(queue.view());
                 } else if (!swap && !queue.view().busy) {
                     queue.unlock();
+                    applyHud(queue.view());
                 }
             } catch {
                 queue.unlock();
+                applyHud(queue.view());
             }
         })();
-    }, [game]);
+    }, [game, applyHud]);
     async function action(type: string, payload: Record<string, unknown> = {}) {
         if (busyRef.current || syncing || animLockedRef.current) return;
         busyRef.current = true;
