@@ -16,15 +16,18 @@ final class Progression
 
     public const LOADOUTS_AFTER = 2;
 
-    public const RANKED_HINT = 'Ranked unlocks after your first win.';
+    /** Ranked, correspondence, rating, crowns and Rankings. First win or this many finished matches. */
+    public const COMPETITIVE_AFTER = 5;
 
-    public const CORRESPONDENCE_HINT = 'Correspondence unlocks after your first win.';
+    public const RANKED_HINT = 'Ranked unlocks after your first win or 5 finished matches.';
+
+    public const CORRESPONDENCE_HINT = 'Correspondence unlocks after your first win or 5 finished matches.';
 
     public const LOADOUTS_HINT = 'Loadouts unlock after your third match.';
 
-    public const RANKINGS_HINT = 'Rankings unlock after your first win.';
+    public const RANKINGS_HINT = 'Rankings unlock after your first win or 5 finished matches.';
 
-    public const CROWNS_HINT = 'Crowns unlock after your first win.';
+    public const CROWNS_HINT = 'Crowns unlock after your first win or 5 finished matches.';
 
     /**
      * @return array{
@@ -58,6 +61,7 @@ final class Progression
             $finished = (int) (clone $query)->count();
             $hasWon = (clone $query)->where('state->winner_id', $user->id)->exists();
         }
+        $competitive = $hasWon || $finished >= self::COMPETITIVE_AFTER;
 
         return [
             'matches_finished' => $finished,
@@ -67,10 +71,10 @@ final class Progression
                 'draft' => $finished >= self::DRAFT_AFTER,
                 'specialists' => $finished >= self::SPECIALISTS_AFTER,
                 'loadouts' => $finished >= self::LOADOUTS_AFTER,
-                'ranked' => $hasWon,
-                'crowns' => $hasWon,
-                'correspondence' => $hasWon,
-                'rankings' => $hasWon,
+                'ranked' => $competitive,
+                'crowns' => $competitive,
+                'correspondence' => $competitive,
+                'rankings' => $competitive,
             ],
             'hints' => [
                 'ranked' => self::RANKED_HINT,
