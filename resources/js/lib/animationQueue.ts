@@ -128,6 +128,7 @@ export type QueueView = {
     inputLocked: boolean;
     currentType: string | null;
     turnBanner: { text: string; playerId: number } | null;
+    opponentPlaying: boolean;
     deathBanners: DeathBanner[];
     floats: FloatingResult[];
     poses: Record<string, UnitPose>;
@@ -157,6 +158,7 @@ export type QueueOptions = {
     now?: () => number;
     reducedMotion?: boolean;
     watchdogMs?: number;
+    timeScale?: number;
 };
 
 function lerp(a: number, b: number, t: number): number {
@@ -211,10 +213,14 @@ function healSkill(name: string): boolean {
 
 export function createAnimationQueue(options: QueueOptions) {
     const now = options.now ?? (() => performance.now());
+    let timeScale = options.timeScale ?? 1;
     const watchdogMs = options.watchdogMs ?? TIMING.watchdogMs;
     let viewerId = options.viewerId;
     let playerName = options.playerName;
     let reducedMotion = options.reducedMotion ?? false;
+    function ms(value: number): number {
+        return value * timeScale;
+    }
     let beats: Beat[] = [];
     let beatIndex = 0;
     let beatStartedAt = 0;
@@ -224,6 +230,7 @@ export function createAnimationQueue(options: QueueOptions) {
     let owners: Record<string, number> = {};
     let deathBanners: DeathBanner[] = [];
     let turnBanner: QueueView["turnBanner"] = null;
+    let opponentPlaying = false;
     let floats: FloatSpec[] = [];
     let effects: EffectSpec[] = [];
     let currentType: string | null = null;
@@ -245,9 +252,22 @@ export function createAnimationQueue(options: QueueOptions) {
         lockStartedAt = null;
         currentType = null;
         turnBanner = null;
+        opponentPlaying = false;
         floats = [];
         effects = [];
         notifyLock(false);
+    }
+
+    function holdOpponentBanner(playerId: number) {
+        opponentPlaying = true;
+        turnBanner = {
+            text: turnBannerText({
+                playerId,
+                viewerId,
+                name: playerName(playerId),
+            }),
+            playerId,
+        };
     }
 
     function ensurePose(id: string, unit?: BoardUnit): UnitPose {
@@ -294,8 +314,8 @@ export function createAnimationQueue(options: QueueOptions) {
         const visible: FloatingResult[] = [];
         for (const item of floats) {
             const age = Math.max(0, at - item.born);
-            if (age >= TIMING.floatMs) continue;
-            const fadeStart = TIMING.floatMs - TIMING.floatFadeMs;
+            if (age >= ms(TIMING.floatMs)) continue;
+            const fadeStart = ms(TIMING.floatMs) - ms(TIMING.floatFadeMs);
             visible.push({
                 id: item.id,
                 unitId: item.unitId,
@@ -307,11 +327,11 @@ export function createAnimationQueue(options: QueueOptions) {
                 chance: item.chance,
                 rise: reducedMotion
                     ? 0
-                    : TIMING.floatRisePx * clamp01(age / TIMING.floatMs),
+                    : TIMING.floatRisePx * clamp01(age / ms(TIMING.floatMs)),
                 opacity:
                     age <= fadeStart
                         ? 1
-                        : 1 - (age - fadeStart) / TIMING.floatFadeMs,
+                        : 1 - (age - fadeStart) / ms(TIMING.floatFadeMs),
             });
         }
         return visible;
@@ -356,7 +376,7 @@ export function createAnimationQueue(options: QueueOptions) {
 
     function finish(at: number, snap: boolean) {
         if (snap) snapRemaining();
-        floats = floats.filter((item) => at - item.born <= TIMING.floatMs);
+        floats = floats.filter((item) => at - item.born <= ms(TIMING.floatMs));
         if (beats.length === 0 && liveFloats(at).length === 0) {
             unlock();
         }
@@ -369,7 +389,7 @@ export function createAnimationQueue(options: QueueOptions) {
             if (liveFloats(at).length === 0) unlock();
             else {
                 currentType = "float";
-                turnBanner = null;
+                if (!opponentPlaying) turnBanner = null;
             }
             return;
         }
@@ -395,7 +415,7 @@ export function createAnimationQueue(options: QueueOptions) {
 
     function moveDuration(event: Extract<GameEvent, { type: "move" }>): number {
         const hops = Math.max(1, event.path.length - 1);
-        return hops * TIMING.hopMs;
+        return hops * ms(TIMING.hopMs);
     }
 
     function attackMotion(event: AttackEvent): {
@@ -409,26 +429,26 @@ export function createAnimationQueue(options: QueueOptions) {
         if (melee) {
             const afterLunge =
                 event.outcome === "hit"
-                    ? TIMING.hitFlashMs + TIMING.meleeStepBackMs
+                    ? ms(TIMING.hitFlashMs) + ms(TIMING.meleeStepBackMs)
                     : event.outcome === "block"
-                      ? TIMING.blockMs + TIMING.meleeStepBackMs
-                      : TIMING.missSidestepMs + TIMING.meleeStepBackMs;
+                      ? ms(TIMING.blockMs) + ms(TIMING.meleeStepBackMs)
+                      : ms(TIMING.missSidestepMs) + ms(TIMING.meleeStepBackMs);
             return {
                 melee: true,
-                duration: TIMING.meleeLungeMs + afterLunge,
-                impactAt: TIMING.meleeLungeMs,
+                duration: ms(TIMING.meleeLungeMs) + afterLunge,
+                impactAt: ms(TIMING.meleeLungeMs),
             };
         }
         const after =
             event.outcome === "hit"
-                ? TIMING.hitFlashMs
+                ? ms(TIMING.hitFlashMs)
                 : event.outcome === "block"
-                  ? TIMING.blockMs
-                  : TIMING.missSidestepMs;
+                  ? ms(TIMING.blockMs)
+                  : ms(TIMING.missSidestepMs);
         return {
             melee: false,
-            duration: TIMING.projectileMs + after,
-            impactAt: TIMING.projectileMs,
+            duration: ms(TIMING.projectileMs) + after,
+            impactAt: ms(TIMING.projectileMs),
         };
     }
 
@@ -464,18 +484,20 @@ export function createAnimationQueue(options: QueueOptions) {
                 const path = event.path.length > 1 ? event.path : [event.from, event.to];
                 next.push({
                     type: "move",
-                    duration: reducedMotion ? 0 : hops * TIMING.hopMs,
-                    start() {},
+                    duration: reducedMotion ? 0 : hops * ms(TIMING.hopMs),
+                    start() {
+                        if (event.owner_id !== viewerId) holdOpponentBanner(event.owner_id);
+                    },
                     run(elapsed) {
                         const pose = ensurePose(event.unit_id);
-                        if (reducedMotion || elapsed >= hops * TIMING.hopMs) {
+                        if (reducedMotion || elapsed >= hops * ms(TIMING.hopMs)) {
                             pose.x = event.to[0];
                             pose.y = event.to[1];
                             pose.lift = 0;
                             return;
                         }
-                        const hop = Math.min(hops - 1, Math.floor(elapsed / TIMING.hopMs));
-                        const frac = clamp01((elapsed - hop * TIMING.hopMs) / TIMING.hopMs);
+                        const hop = Math.min(hops - 1, Math.floor(elapsed / ms(TIMING.hopMs)));
+                        const frac = clamp01((elapsed - hop * ms(TIMING.hopMs)) / ms(TIMING.hopMs));
                         const from = path[hop];
                         const to = path[hop + 1] ?? path[hop];
                         pose.x = lerp(from[0], to[0], frac);
@@ -497,6 +519,7 @@ export function createAnimationQueue(options: QueueOptions) {
                     type: "attack",
                     duration: reducedMotion ? 0 : motion.duration,
                     start() {
+                        if (event.owner_id !== viewerId) holdOpponentBanner(event.owner_id);
                         if (reducedMotion) {
                             const target = poses[event.target_id];
                             spawnFloat(
@@ -536,13 +559,13 @@ export function createAnimationQueue(options: QueueOptions) {
                         target.sidestep = 0;
                         if (reducedMotion) return;
                         if (motion.melee) {
-                            if (elapsed < TIMING.meleeLungeMs) {
-                                const t = elapsed / TIMING.meleeLungeMs;
+                            if (elapsed < ms(TIMING.meleeLungeMs)) {
+                                const t = elapsed / ms(TIMING.meleeLungeMs);
                                 attacker.lungeX = (dx / dist) * 0.28 * t;
                                 attacker.lungeZ = (dy / dist) * 0.28 * t;
                             } else if (
                                 event.outcome === "hit" &&
-                                elapsed < TIMING.meleeLungeMs + TIMING.hitFlashMs
+                                elapsed < ms(TIMING.meleeLungeMs) + ms(TIMING.hitFlashMs)
                             ) {
                                 attacker.lungeX = (dx / dist) * 0.28;
                                 attacker.lungeZ = (dy / dist) * 0.28;
@@ -550,7 +573,7 @@ export function createAnimationQueue(options: QueueOptions) {
                                 attacker.flash = 0.4;
                             } else if (
                                 event.outcome === "block" &&
-                                elapsed < TIMING.meleeLungeMs + TIMING.blockMs
+                                elapsed < ms(TIMING.meleeLungeMs) + ms(TIMING.blockMs)
                             ) {
                                 attacker.lungeX = (dx / dist) * 0.2;
                                 attacker.lungeZ = (dy / dist) * 0.2;
@@ -558,21 +581,21 @@ export function createAnimationQueue(options: QueueOptions) {
                                 spawnShield(event, target);
                             } else if (
                                 event.outcome === "miss" &&
-                                elapsed < TIMING.meleeLungeMs + TIMING.missSidestepMs
+                                elapsed < ms(TIMING.meleeLungeMs) + ms(TIMING.missSidestepMs)
                             ) {
                                 const t =
-                                    (elapsed - TIMING.meleeLungeMs) /
-                                    TIMING.missSidestepMs;
+                                    (elapsed - ms(TIMING.meleeLungeMs)) /
+                                    ms(TIMING.missSidestepMs);
                                 target.sidestep = Math.sin(Math.PI * t) * 0.18;
                             } else {
                                 const back = clamp01(
-                                    (elapsed - (motion.duration - TIMING.meleeStepBackMs)) /
-                                        TIMING.meleeStepBackMs,
+                                    (elapsed - (motion.duration - ms(TIMING.meleeStepBackMs))) /
+                                        ms(TIMING.meleeStepBackMs),
                                 );
                                 attacker.lungeX = (dx / dist) * 0.28 * (1 - back);
                                 attacker.lungeZ = (dy / dist) * 0.28 * (1 - back);
                             }
-                        } else if (elapsed < TIMING.projectileMs) {
+                        } else if (elapsed < ms(TIMING.projectileMs)) {
                             spawnProjectile(event, attacker, target, elapsed);
                         } else if (event.outcome === "hit") {
                             target.flash = 1;
@@ -581,7 +604,7 @@ export function createAnimationQueue(options: QueueOptions) {
                             spawnShield(event, target);
                         } else {
                             const t =
-                                (elapsed - TIMING.projectileMs) / TIMING.missSidestepMs;
+                                (elapsed - ms(TIMING.projectileMs)) / ms(TIMING.missSidestepMs);
                             target.sidestep = Math.sin(Math.PI * clamp01(t)) * 0.18;
                         }
                     },
@@ -611,11 +634,13 @@ export function createAnimationQueue(options: QueueOptions) {
             } else if (event.type === "death") {
                 next.push({
                     type: "death",
-                    duration: reducedMotion ? 0 : TIMING.deathMs,
-                    start() {},
+                    duration: reducedMotion ? 0 : ms(TIMING.deathMs),
+                    start() {
+                        if (event.owner_id !== viewerId) holdOpponentBanner(event.owner_id);
+                    },
                     run(elapsed) {
                         const pose = ensurePose(event.unit_id);
-                        const t = reducedMotion ? 1 : clamp01(elapsed / TIMING.deathMs);
+                        const t = reducedMotion ? 1 : clamp01(elapsed / ms(TIMING.deathMs));
                         pose.defeated = true;
                         pose.tip = t;
                         pose.sink = t;
@@ -648,25 +673,35 @@ export function createAnimationQueue(options: QueueOptions) {
                 });
                 next.push({
                     type: "turn_start",
-                    duration: TIMING.turnBannerMs,
+                    duration: ms(TIMING.turnBannerMs),
                     start() {
                         deathBanners = [];
-                        turnBanner = { text, playerId: event.player_id };
+                        if (event.player_id === viewerId) {
+                            opponentPlaying = false;
+                            turnBanner = { text, playerId: event.player_id };
+                        } else {
+                            holdOpponentBanner(event.player_id);
+                        }
                     },
                     run() {},
                     end() {
+                        if (event.player_id === viewerId) {
+                            turnBanner = null;
+                            return;
+                        }
                         const moreOpponent = next
                             .slice(next.indexOf(this) + 1)
                             .some((beat) => beat.type !== "turn_start");
-                        if (event.player_id === viewerId || !moreOpponent) {
+                        if (!moreOpponent) {
                             turnBanner = null;
+                            opponentPlaying = false;
                         }
                     },
                 });
             } else if (event.type === "face") {
                 next.push({
                     type: "face",
-                    duration: reducedMotion ? 0 : TIMING.faceMs,
+                    duration: reducedMotion ? 0 : ms(TIMING.faceMs),
                     start() {},
                     run() {},
                     end() {},
@@ -674,7 +709,7 @@ export function createAnimationQueue(options: QueueOptions) {
             } else if (event.type === "status_tick") {
                 next.push({
                     type: "status_tick",
-                    duration: reducedMotion ? 0 : TIMING.statusMs,
+                    duration: reducedMotion ? 0 : ms(TIMING.statusMs),
                     start() {
                         if (event.amount) {
                             const pose = poses[event.unit_id];
@@ -707,9 +742,16 @@ export function createAnimationQueue(options: QueueOptions) {
             if (opponentSequence && event.type !== "turn_start") {
                 next.push({
                     type: "gap",
-                    duration: reducedMotion ? 0 : TIMING.opponentGapMs,
+                    duration: reducedMotion ? 0 : ms(TIMING.opponentGapMs),
                     start() {
                         currentType = "gap";
+                        if (opponentSequence) {
+                            const owner =
+                                "owner_id" in event ? event.owner_id : null;
+                            if (owner !== null && owner !== viewerId) {
+                                holdOpponentBanner(owner);
+                            }
+                        }
                     },
                     run() {},
                     end() {},
@@ -728,8 +770,9 @@ export function createAnimationQueue(options: QueueOptions) {
         let spawned = false;
         return {
             type: "skill",
-            duration: reducedMotion ? 0 : TIMING.projectileMs,
+            duration: reducedMotion ? 0 : ms(TIMING.projectileMs),
             start() {
+                if (event.owner_id !== viewerId) holdOpponentBanner(event.owner_id);
                 const from = poses[event.unit_id] ?? poseAt(0, 0);
                 const targetId = event.target_ids[0];
                 const to = (targetId && poses[targetId]) || from;
@@ -741,7 +784,7 @@ export function createAnimationQueue(options: QueueOptions) {
                         to: [to.x, to.y],
                     },
                     now(),
-                    reducedMotion ? TIMING.floatMs : TIMING.projectileMs,
+                    reducedMotion ? ms(TIMING.floatMs) : ms(TIMING.projectileMs),
                 );
                 if (reducedMotion) spawnSkillFloats(event);
                 spawned = reducedMotion;
@@ -786,7 +829,7 @@ export function createAnimationQueue(options: QueueOptions) {
                 to: [target.x, target.y],
             },
             now(),
-            TIMING.blockMs,
+            ms(TIMING.blockMs),
         );
     }
 
@@ -808,7 +851,7 @@ export function createAnimationQueue(options: QueueOptions) {
                     to: [to.x, to.y],
                 },
                 now() - elapsed,
-                TIMING.projectileMs,
+                ms(TIMING.projectileMs),
             );
         }
     }
@@ -818,10 +861,10 @@ export function createAnimationQueue(options: QueueOptions) {
         queueBeats([
             {
                 type: "swap",
-                duration: reducedMotion ? 0 : TIMING.swapMs,
+                duration: reducedMotion ? 0 : ms(TIMING.swapMs),
                 start() {},
                 run(elapsed) {
-                    const t = reducedMotion ? 1 : clamp01(elapsed / TIMING.swapMs);
+                    const t = reducedMotion ? 1 : clamp01(elapsed / ms(TIMING.swapMs));
                     const eased = 1 - (1 - t) * (1 - t);
                     for (const unit of [swap.a, swap.b]) {
                         const pose = ensurePose(unit.id);
@@ -846,7 +889,7 @@ export function createAnimationQueue(options: QueueOptions) {
     }
 
     function advance(at = now()): QueueView {
-        if (lockStartedAt !== null && at - lockStartedAt >= watchdogMs) {
+        if (lockStartedAt !== null && at - lockStartedAt >= watchdogMs * timeScale) {
             snapRemaining();
             floats = [];
             effects = [];
@@ -873,6 +916,7 @@ export function createAnimationQueue(options: QueueOptions) {
             inputLocked,
             currentType,
             turnBanner,
+            opponentPlaying,
             deathBanners: deathBanners.map((banner) => ({ ...banner })),
             floats: liveFloats(at),
             poses,
@@ -893,6 +937,9 @@ export function createAnimationQueue(options: QueueOptions) {
         unlock,
         setReducedMotion(value: boolean) {
             reducedMotion = value;
+        },
+        setTimeScale(value: number) {
+            timeScale = Math.max(0.1, value);
         },
         setPlayerName(next: (id: number) => string) {
             playerName = next;

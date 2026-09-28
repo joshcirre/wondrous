@@ -100,6 +100,7 @@ type Props = {
     onHud?: (hud: {
         inputLocked: boolean;
         turnBanner: string;
+        opponentPlaying: boolean;
         floats: string;
         deathBanners: string;
         beat: string;
@@ -107,6 +108,16 @@ type Props = {
         floatTitle: string;
         floatValue: string;
         floatChance: string;
+        floatScreens: {
+            id: string;
+            kind: string;
+            title: string;
+            value?: number;
+            chance?: number;
+            left: number;
+            top: number;
+            opacity: number;
+        }[];
     }) => void;
 };
 
@@ -115,6 +126,7 @@ const emptyView = (): QueueView => ({
     inputLocked: false,
     currentType: null,
     turnBanner: null,
+    opponentPlaying: false,
     deathBanners: [],
     floats: [],
     poses: {},
@@ -838,6 +850,8 @@ function MotionDriver({
 }) {
     const [view, setView] = useState(viewRef.current);
     const hudKey = useRef("");
+    const { camera, size } = useThree();
+    const projected = new Vector3();
     useFrame(() => {
         const next = animation ? animation.advance(performance.now()) : emptyView();
         viewRef.current = next;
@@ -857,12 +871,28 @@ function MotionDriver({
         ) {
             setView(next);
         }
+        const floatScreens = next.floats.map((item) => {
+            const [wx, wy, wz] = tilePos(item.x, item.y, 1.55 + item.rise / 80);
+            projected.set(wx, wy, wz).project(camera);
+            return {
+                id: item.id,
+                kind: item.kind,
+                title: item.title,
+                value: item.value,
+                chance: item.chance,
+                left: (projected.x * 0.5 + 0.5) * 100,
+                top: (-projected.y * 0.5 + 0.5) * 100,
+                opacity: item.opacity,
+            };
+        });
         const key = [
             next.inputLocked ? "1" : "0",
             next.turnBanner?.text ?? "",
+            next.opponentPlaying ? "1" : "0",
             next.currentType ?? "",
             next.floats.map((item) => `${item.kind}:${item.value ?? item.chance ?? ""}`).join(","),
             next.deathBanners.map((item) => item.unitId).join(","),
+            floatScreens.map((item) => `${item.left.toFixed(1)},${item.top.toFixed(1)}`).join(";"),
         ].join("|");
         if (key !== hudKey.current) {
             hudKey.current = key;
@@ -870,6 +900,7 @@ function MotionDriver({
             onHud?.({
                 inputLocked: next.inputLocked,
                 turnBanner: next.turnBanner?.text ?? "",
+                opponentPlaying: next.opponentPlaying,
                 floats: next.floats
                     .map((item) => `${item.kind}:${item.value ?? item.chance ?? ""}`)
                     .join(","),
@@ -880,6 +911,7 @@ function MotionDriver({
                 floatValue: primary?.value !== undefined ? String(primary.value) : "",
                 floatChance:
                     primary?.chance !== undefined ? String(primary.chance) : "",
+                floatScreens,
             });
         }
     });

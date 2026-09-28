@@ -225,6 +225,132 @@ describe("createAnimationQueue", () => {
         assert.equal(q.view().turnBanner?.text, "Your turn");
     });
 
+    it("keeps the opponent banner and input lock until the viewer's turn_start beat", () => {
+        const { q, time } = queue();
+        const events: GameEvent[] = [
+            turnStart({ player_id: 2, turn_number: 2 }),
+            moveEvent({
+                owner_id: 2,
+                unit_id: "2-warden",
+                from: [3, 4],
+                to: [3, 5],
+                path: [
+                    [3, 4],
+                    [3, 5],
+                ],
+            }),
+            attackEvent({
+                owner_id: 2,
+                unit_id: "2-warden",
+                target_id: "1-ranger",
+                target_owner_id: 1,
+            }),
+            turnStart({ player_id: 1, turn_number: 3 }),
+        ];
+        q.pushEvents(events, { units });
+        assert.equal(q.view().turnBanner?.text, "Elara's turn");
+        assert.equal(q.view().opponentPlaying, true);
+        assert.equal(q.view().inputLocked, true);
+
+        q.advance(time.add(TIMING.turnBannerMs));
+        assert.equal(q.view().currentType, "move");
+        assert.equal(q.view().turnBanner?.text, "Elara's turn");
+        assert.equal(q.view().inputLocked, true);
+
+        q.advance(time.add(TIMING.hopMs));
+        assert.equal(q.view().currentType, "gap");
+        q.advance(time.add(TIMING.opponentGapMs));
+        assert.equal(q.view().currentType, "attack");
+        assert.equal(q.view().turnBanner?.text, "Elara's turn");
+        assert.equal(q.view().inputLocked, true);
+        assert.equal(q.isInputLocked(), true);
+
+        q.advance(time.add(TIMING.projectileMs + TIMING.hitFlashMs));
+        assert.equal(q.view().currentType, "gap");
+        q.advance(time.add(TIMING.opponentGapMs));
+        assert.equal(q.view().currentType, "turn_start");
+        assert.equal(q.view().turnBanner?.text, "Your turn");
+        assert.equal(q.view().opponentPlaying, false);
+        assert.equal(q.view().inputLocked, true);
+
+        q.advance(time.add(TIMING.floatMs));
+        q.advance(time.add(TIMING.turnBannerMs));
+        assert.equal(q.view().inputLocked, false);
+        assert.equal(q.view().turnBanner, null);
+    });
+
+    it("keeps input locked while the opponent sequence plays so clicks cannot apply", () => {
+        const { q, time } = queue();
+        q.pushEvents(
+            [
+                turnStart({ player_id: 2, turn_number: 2 }),
+                moveEvent({
+                    owner_id: 2,
+                    unit_id: "2-warden",
+                    from: [3, 4],
+                    to: [3, 5],
+                    path: [
+                        [3, 4],
+                        [3, 5],
+                    ],
+                }),
+                attackEvent({
+                    owner_id: 2,
+                    unit_id: "2-warden",
+                    target_id: "1-ranger",
+                    target_owner_id: 1,
+                    outcome: "miss",
+                    damage: 0,
+                    roll: { accuracy: 90, hit_roll: 96, block_chance: 12, block_roll: null },
+                }),
+            ],
+            { units },
+        );
+        const clicks: boolean[] = [];
+        const click = () => clicks.push(q.isInputLocked());
+        click();
+        q.advance(time.add(TIMING.turnBannerMs));
+        click();
+        q.advance(time.add(TIMING.hopMs));
+        click();
+        q.advance(time.add(TIMING.opponentGapMs));
+        click();
+        q.advance(time.add(TIMING.projectileMs + TIMING.missSidestepMs));
+        click();
+        assert.equal(q.view().turnBanner?.text, "Elara's turn");
+        assert.ok(clicks.every((locked) => locked === true));
+        assert.equal(q.view().inputLocked, true);
+        q.advance(time.add(TIMING.opponentGapMs + TIMING.floatMs));
+        assert.equal(q.isInputLocked(), false);
+        click();
+        assert.equal(clicks.at(-1), false);
+    });
+
+    it("infers an opponent banner from opponent events when turn_start is missing", () => {
+        const { q, time } = queue();
+        q.pushEvents(
+            [
+                moveEvent({
+                    owner_id: 2,
+                    unit_id: "2-warden",
+                    from: [3, 4],
+                    to: [3, 5],
+                    path: [
+                        [3, 4],
+                        [3, 5],
+                    ],
+                }),
+            ],
+            { units },
+        );
+        assert.equal(q.view().turnBanner?.text, "Elara's turn");
+        assert.equal(q.view().opponentPlaying, true);
+        assert.equal(q.view().inputLocked, true);
+        q.advance(time.add(TIMING.hopMs));
+        q.advance(time.add(TIMING.opponentGapMs));
+        assert.equal(q.view().inputLocked, false);
+    });
+
     it("keeps a death banner on the fallen tile until the next turn_start", () => {
         const { q, time } = queue();
         q.pushEvents([deathEvent(), turnStart({ player_id: 2, turn_number: 4 })], { units });

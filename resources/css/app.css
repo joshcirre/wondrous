@@ -1424,17 +1424,14 @@ small {
     text-transform: uppercase;
     box-shadow: 0 8px 20px #0006;
 }
-.turn-banner-overlay,
-.board-float-overlay {
+.turn-banner-overlay {
     position: absolute;
     left: 50%;
+    bottom: 52px;
     transform: translateX(-50%);
     z-index: 6;
     pointer-events: none;
     text-align: center;
-}
-.turn-banner-overlay {
-    bottom: 52px;
     font-family: Cinzel, Georgia, serif;
     font-size: 1.15rem;
     letter-spacing: 0.1em;
@@ -1446,7 +1443,11 @@ small {
     text-transform: uppercase;
 }
 .board-float-overlay {
-    bottom: 96px;
+    position: absolute;
+    transform: translate(-50%, -110%);
+    z-index: 20;
+    pointer-events: none;
+    text-align: center;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -1457,7 +1458,6 @@ small {
     border: 1px solid currentColor;
     border-radius: 4px;
     padding: 10px 22px;
-    z-index: 20;
 }
 .board-float-overlay strong {
     font-size: 2.4rem;
