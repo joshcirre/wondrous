@@ -1254,6 +1254,41 @@ small {
     padding-top: 4px;
     color: var(--muted);
 }
+.last-result-chip {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 4px 12px;
+    border-radius: 4px;
+    border: 1px solid currentColor;
+    font-family: Cinzel, Georgia, serif;
+    font-size: 0.95rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 600;
+}
+.last-result-chip b {
+    font-size: 1.25rem;
+    letter-spacing: 0.02em;
+}
+.last-result-chip em {
+    font-style: normal;
+    font-size: 0.8rem;
+    opacity: 0.85;
+}
+.last-result-chip.hit {
+    color: #ff8a4a;
+}
+.last-result-chip.block {
+    color: #d5dee2;
+}
+.last-result-chip.miss {
+    color: #9aa196;
+}
+.last-result-chip.heal {
+    color: #8fd19e;
+}
 .battle-layout {
     display: grid;
     grid-template-columns: 205px minmax(0, 1fr) 275px;

@@ -936,6 +936,20 @@ export default function Game() {
                                       ? "Place champions in your two home rows"
                                       : "The Sunken Court"}
                             </small>
+                            {animHud.floatTitle && (
+                                <strong
+                                    className={`last-result-chip ${animHud.floatKind}`}
+                                    data-float-overlay={`${animHud.floatKind}:${animHud.floatTitle}:${animHud.floatValue}:${animHud.floatChance}`}
+                                >
+                                    {animHud.floatValue && (
+                                        <b>{animHud.floatValue}</b>
+                                    )}
+                                    {animHud.floatTitle}
+                                    {animHud.floatChance && (
+                                        <em>{animHud.floatChance}%</em>
+                                    )}
+                                </strong>
+                            )}
                         </div>
                         <div>
                             {opponent?.name}
