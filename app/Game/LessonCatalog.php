@@ -23,7 +23,7 @@ final class LessonCatalog
             ],
             3 => [
                 'title' => 'Facing',
-                'body' => 'Hover an enemy to see hit and block chances. Attack from behind — the Rogue\'s Backstab deals 52 instead of 32.',
+                'body' => 'Before you click, check the chip. Attacks from behind can\'t be blocked.',
             ],
             4 => [
                 'title' => 'Skills',

@@ -183,6 +183,16 @@ class FirstMatchTest extends TestCase
         $this->actingAs($user)->getJson('/games/'.$game->code.'/state')->assertOk()->assertJsonPath('game.lesson', null);
     }
 
+    public function test_lesson_three_body_points_at_the_chip_not_backstab(): void
+    {
+        self::assertSame(
+            'Before you click, check the chip. Attacks from behind can\'t be blocked.',
+            LessonCatalog::copy(3)['body'],
+        );
+        self::assertStringNotContainsString('Backstab', LessonCatalog::copy(3)['body']);
+        self::assertStringNotContainsString('52', LessonCatalog::copy(3)['body']);
+    }
+
     public function test_player_squad_is_the_starter_standards_with_arcanist_not_pikeman_or_revenant(): void
     {
         $ids = array_column(FirstMatch::playerSquad(), 'character_id');
