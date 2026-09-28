@@ -366,6 +366,9 @@ class ProgressionDisclosureTest extends TestCase
         self::assertSame(5, Progression::COMPETITIVE_AFTER);
         self::assertSame(9, MatchCredit::MIN_TURN);
         self::assertSame('Win a match, or finish 5 matches that last past turn 8, to unlock Ranked.', Progression::RANKED_HINT);
+        self::assertSame('Win a match, or finish 5 matches that last past turn 8, to unlock correspondence.', Progression::CORRESPONDENCE_HINT);
+        self::assertSame('Win a match, or finish 5 matches that last past turn 8, to unlock Rankings.', Progression::RANKINGS_HINT);
+        self::assertSame('Win a match, or finish 5 matches that last past turn 8, to unlock crowns.', Progression::CROWNS_HINT);
         self::assertSame('Loadouts unlock after your third match.', Progression::LOADOUTS_HINT);
     }
 }

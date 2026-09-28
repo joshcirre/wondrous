@@ -21,13 +21,13 @@ final class Progression
 
     public const RANKED_HINT = 'Win a match, or finish 5 matches that last past turn 8, to unlock Ranked.';
 
-    public const CORRESPONDENCE_HINT = 'Correspondence unlocks after your first win or 5 finished matches.';
+    public const CORRESPONDENCE_HINT = 'Win a match, or finish 5 matches that last past turn 8, to unlock correspondence.';
 
     public const LOADOUTS_HINT = 'Loadouts unlock after your third match.';
 
-    public const RANKINGS_HINT = 'Rankings unlock after your first win or 5 finished matches.';
+    public const RANKINGS_HINT = 'Win a match, or finish 5 matches that last past turn 8, to unlock Rankings.';
 
-    public const CROWNS_HINT = 'Crowns unlock after your first win or 5 finished matches.';
+    public const CROWNS_HINT = 'Win a match, or finish 5 matches that last past turn 8, to unlock crowns.';
 
     /**
      * @return array{
