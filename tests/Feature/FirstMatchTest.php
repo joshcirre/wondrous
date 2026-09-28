@@ -283,6 +283,56 @@ class FirstMatchTest extends TestCase
         $this->getJson('/games/'.$game->code.'/replay-data')->assertOk()->assertJsonPath('game.state.draft_picks.'.$user->id.'.0', 'arcanist');
     }
 
+    public function test_first_match_rejects_skills_until_the_viewers_fourth_turn(): void
+    {
+        $user = User::factory()->create();
+        $game = $this->firstMatch($user);
+        $cleric = $this->unit($game, $user->id, 'cleric');
+        $warden = $this->unit($game, $user->id, 'warden');
+        $payload = ['unit_id' => $cleric['id'], 'target_id' => $warden['id']];
+
+        for ($ownTurn = 1; $ownTurn <= 3; $ownTurn++) {
+            $view = $this->actingAs($user)->getJson('/games/'.$game->code.'/state')->assertOk()->json('game');
+            self::assertFalse($view['options']['cues']['skill_strip']);
+            self::assertSame($ownTurn, (int) ceil($game->state['turn_number'] / 2));
+            $this->actingAs($user)->postJson('/games/'.$game->code.'/actions', [
+                'type' => 'skill',
+                'version' => $game->version,
+            ] + $payload)->assertUnprocessable()->assertJsonPath('message', 'Skills unlock on your fourth turn.');
+            $this->act($game, $user, 'end_turn');
+        }
+
+        $view = $this->actingAs($user)->getJson('/games/'.$game->code.'/state')->assertOk()->json('game');
+        self::assertTrue($view['options']['cues']['skill_strip']);
+        self::assertSame(4, (int) ceil($game->state['turn_number'] / 2));
+        $this->actingAs($user)->postJson('/games/'.$game->code.'/actions', [
+            'type' => 'skill',
+            'version' => $game->version,
+        ] + $payload)->assertOk();
+        self::assertTrue(collect($game->refresh()->state['events'])->contains(fn ($event) => ($event['type'] ?? '') === 'skill'));
+    }
+
+    public function test_practice_allows_a_skill_on_turn_one(): void
+    {
+        $user = User::factory()->create();
+        $code = $this->actingAs($user)->postJson('/games', [
+            'name' => 'Practice arena',
+            'ranked' => false,
+            'mode' => 'practice',
+        ])->assertCreated()->json('code');
+        $game = Game::where('code', $code)->firstOrFail();
+        self::assertNull($game->state['scenario'] ?? null);
+        self::assertSame(1, $game->state['turn_number']);
+        $cleric = $this->unit($game, $user->id, 'cleric');
+        $warden = $this->unit($game, $user->id, 'warden');
+        $this->actingAs($user)->postJson('/games/'.$game->code.'/actions', [
+            'type' => 'skill',
+            'version' => $game->version,
+            'unit_id' => $cleric['id'],
+            'target_id' => $warden['id'],
+        ])->assertOk();
+    }
+
     public function test_first_match_is_practice_only_and_new_players_see_the_entry(): void
     {
         $this->withoutVite();

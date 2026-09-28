@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Events\GameUpdated;
 use App\Events\LobbyUpdated;
 use App\Events\MatchAdvanced;
+use App\Game\BoardCues;
 use App\Game\CharacterCatalog;
 use App\Game\ComputerOpponent;
 use App\Game\GameEngine;
@@ -97,6 +98,9 @@ class MatchService
                 return [$game, true];
             }
             abort_unless($game->version === $version, 409, 'The board changed. Your view has been refreshed; choose your action again.');
+            if ($type === 'skill' && ($game->state['scenario'] ?? null) === FirstMatch::KEY && $game->reduced_board) {
+                abort_unless(BoardCues::forViewer(true, $game->state, $user->id)['skill_strip'], 422, 'Skills unlock on your fourth turn.');
+            }
             if ($type === 'join') {
                 abort_if($game->mode === 'practice', 403, 'Practice games are private.');
                 if ($game->time_control === 'live') {

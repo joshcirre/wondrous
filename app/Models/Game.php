@@ -45,7 +45,18 @@ class Game extends Model
         $options = (new GameEngine)->options($this->state, $id);
         if (is_array($options)) {
             $options['version'] = $this->version;
-            $options['cues'] = BoardCues::visibility((bool) $this->reduced_board, (int) ($this->state['turn_number'] ?? 0));
+            $cues = BoardCues::forViewer((bool) $this->reduced_board, $this->state, $id);
+            $options['cues'] = $cues;
+            if (! $cues['skill_strip']) {
+                foreach ($options['units'] ?? [] as $unitId => $unit) {
+                    $options['units'][$unitId]['skill'] = [
+                        'usable' => false,
+                        'reason' => $unit['skill']['reason'] ?? 'Skills unlock on your fourth turn.',
+                        'cost' => $unit['skill']['cost'] ?? 0,
+                        'targets' => [],
+                    ];
+                }
+            }
         }
 
         return ['id' => $this->id, 'code' => $this->code, 'name' => $this->name, 'ranked' => $this->ranked, 'mode' => $this->mode ?? 'multiplayer', 'time_control' => $this->time_control ?? 'live', 'reduced_board' => (bool) $this->reduced_board, 'turn_due_at' => $this->turn_due_at?->toISOString(), 'version' => $this->version, 'state' => $state, 'options' => $options, 'lesson' => LessonCatalog::present($this->state), 'created_at' => $this->created_at->toISOString(), 'reward_claimed' => in_array($id, $this->claims ?? [])];
