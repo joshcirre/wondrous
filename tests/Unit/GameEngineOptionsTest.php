@@ -369,6 +369,74 @@ class GameEngineOptionsTest extends TestCase
         self::assertTrue($waiting === null || $waiting === [] || ($waiting['units'] ?? []) === []);
     }
 
+    public function test_piercing_skill_damage_on_hit_matches_forced_cast(): void
+    {
+        $e = $this->engine();
+        $s = $this->duel('ranger', 'warden');
+        $target = $this->unitOptions($s, 1, '1-ranger')['skill']['targets'][0];
+        self::assertSame('damage', $target['effect']);
+        self::assertArrayHasKey('damage_on_hit', $target);
+        $result = $e->apply($s, 1, 'skill', ['unit_id' => '1-ranger', 'target_id' => '2-warden']);
+        self::assertSame($target['damage_on_hit'], $s['units'][1]['hp'] - $result['units'][1]['hp']);
+        self::assertSame(34, $target['damage_on_hit']);
+        self::assertFalse($target['lethal']);
+    }
+
+    public function test_non_piercing_skill_damage_on_hit_matches_forced_cast(): void
+    {
+        $e = $this->engine();
+        $s = $this->duel('knight', 'warden');
+        $target = $this->unitOptions($s, 1, '1-knight')['skill']['targets'][0];
+        $result = $e->apply($s, 1, 'skill', ['unit_id' => '1-knight', 'target_id' => '2-warden']);
+        self::assertSame($target['damage_on_hit'], $s['units'][1]['hp'] - $result['units'][1]['hp']);
+        self::assertSame(13, $target['damage_on_hit']);
+
+        $warded = $this->duel('knight', 'warden');
+        $warded['units'][1]['statuses']['ward'] = 2;
+        $wardTarget = $this->unitOptions($warded, 1, '1-knight')['skill']['targets'][0];
+        $wardResult = $e->apply($warded, 1, 'skill', ['unit_id' => '1-knight', 'target_id' => '2-warden']);
+        self::assertSame($wardTarget['damage_on_hit'], $warded['units'][1]['hp'] - $wardResult['units'][1]['hp']);
+        self::assertSame(1, $wardTarget['damage_on_hit']);
+    }
+
+    public function test_rogue_skill_is_52_from_the_rear_and_32_from_other_sides(): void
+    {
+        $rear = $this->duel('rogue', 'warden');
+        $rear['units'][1]['facing'] = 'north';
+        $rearTarget = $this->unitOptions($rear, 1, '1-rogue')['skill']['targets'][0];
+        $rearResult = $this->engine()->apply($rear, 1, 'skill', ['unit_id' => '1-rogue', 'target_id' => '2-warden']);
+        self::assertSame(52, $rearTarget['damage_on_hit']);
+        self::assertSame(52, $rear['units'][1]['hp'] - $rearResult['units'][1]['hp']);
+
+        foreach (['south' => 32, 'east' => 32, 'west' => 32] as $facing => $expected) {
+            $board = $this->duel('rogue', 'warden');
+            $board['units'][1]['facing'] = $facing;
+            $target = $this->unitOptions($board, 1, '1-rogue')['skill']['targets'][0];
+            $result = $this->engine()->apply($board, 1, 'skill', ['unit_id' => '1-rogue', 'target_id' => '2-warden']);
+            self::assertSame($expected, $target['damage_on_hit'], $facing);
+            self::assertSame($expected, $board['units'][1]['hp'] - $result['units'][1]['hp'], $facing);
+        }
+    }
+
+    public function test_lethal_flag_follows_damage_on_hit_versus_remaining_health(): void
+    {
+        $s = $this->duel('ranger', 'warden');
+        $s['units'][1]['hp'] = 10;
+        $attack = $this->unitOptions($s, 1, '1-ranger')['attack'][0];
+        self::assertTrue($attack['lethal']);
+        self::assertSame(10, $attack['damage_on_hit']);
+
+        $s['units'][1]['hp'] = 80;
+        $safe = $this->unitOptions($s, 1, '1-ranger')['attack'][0];
+        self::assertFalse($safe['lethal']);
+        self::assertSame(17, $safe['damage_on_hit']);
+
+        $s['units'][1]['hp'] = 30;
+        $skill = $this->unitOptions($s, 1, '1-ranger')['skill']['targets'][0];
+        self::assertTrue($skill['lethal']);
+        self::assertSame(30, $skill['damage_on_hit']);
+    }
+
     public function test_options_computation_for_a_full_board_stays_bounded(): void
     {
         $s = $this->battle();

@@ -91,6 +91,23 @@ export function resolveBoardClick(
     return { type: "none" };
 }
 
+export function resolveBoardHover(
+    hits: BoardHit[],
+    highlights: BoardHighlight[],
+): { x: number; y: number } | null {
+    const highlightAt = new Set(
+        highlights.map((highlight) => `${highlight.x},${highlight.y}`),
+    );
+    const preferred = hits.find((hit) =>
+        highlightAt.has(`${hit.x},${hit.y}`),
+    );
+    if (preferred) {
+        return { x: preferred.x, y: preferred.y };
+    }
+    const hit = hits[0];
+    return hit ? { x: hit.x, y: hit.y } : null;
+}
+
 export function battleTargets<
     T extends { id: string; hp: number; x: number; y: number; owner_id: number },
 >(args: {

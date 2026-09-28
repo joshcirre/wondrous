@@ -93,6 +93,50 @@ class GameOptionsTest extends TestCase
         self::assertSame($acted['version'], $acted['options']['version']);
     }
 
+    public function test_reduced_board_defaults_on_and_controls_cue_visibility(): void
+    {
+        [$host, $guest] = $this->users();
+        $game = $this->createMatch($host);
+        self::assertTrue($game->reduced_board);
+
+        $this->act($game, $guest, 'join');
+        for ($i = 0; $i < 12; $i++) {
+            $player = $game->state['turn_player_id'] === $host->id ? $host : $guest;
+            $this->act($game, $player, 'draft', ['character_id' => $game->state['offers'][$player->id][0]]);
+        }
+        $this->act($game, $host, 'ready');
+        $this->act($game, $guest, 'ready');
+        $turnOne = $this->actingAs($host)->getJson('/games/'.$game->code.'/state')->assertOk()->json('game');
+        self::assertTrue($turnOne['reduced_board']);
+        self::assertFalse($turnOne['options']['cues']['breakdown']);
+        self::assertFalse($turnOne['options']['cues']['skill_strip']);
+        self::assertSame(1, $turnOne['state']['turn_number']);
+    }
+
+    public function test_reduced_board_can_be_turned_off_when_creating_a_match(): void
+    {
+        [$host, $guest] = $this->users();
+        $response = $this->actingAs($host)->postJson('/games', [
+            'name' => 'Full board arena',
+            'ranked' => false,
+            'reduced_board' => false,
+        ])->assertCreated();
+        $game = Game::where('code', $response->json('code'))->firstOrFail();
+        self::assertFalse($game->reduced_board);
+
+        $this->act($game, $guest, 'join');
+        for ($i = 0; $i < 12; $i++) {
+            $player = $game->state['turn_player_id'] === $host->id ? $host : $guest;
+            $this->act($game, $player, 'draft', ['character_id' => $game->state['offers'][$player->id][0]]);
+        }
+        $this->act($game, $host, 'ready');
+        $this->act($game, $guest, 'ready');
+        $view = $this->actingAs($host)->getJson('/games/'.$game->code.'/state')->assertOk()->json('game');
+        self::assertFalse($view['reduced_board']);
+        self::assertTrue($view['options']['cues']['breakdown']);
+        self::assertTrue($view['options']['cues']['skill_strip']);
+    }
+
     public function test_options_are_not_persisted_into_records_or_state(): void
     {
         [$host, $guest] = $this->users();

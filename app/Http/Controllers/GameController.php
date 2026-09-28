@@ -30,8 +30,8 @@ class GameController extends Controller
 
     public function create(Request $r, MatchService $matches)
     {
-        $v = $r->validate(['name' => 'required|string|max:60', 'ranked' => 'required|boolean', 'time_control' => 'sometimes|required|in:live,correspondence', 'mode' => 'sometimes|required|in:multiplayer,practice']);
-        $g = $matches->create($r->user(), $v['name'], $v['ranked'], $v['time_control'] ?? 'live', $v['mode'] ?? 'multiplayer');
+        $v = $r->validate(['name' => 'required|string|max:60', 'ranked' => 'required|boolean', 'time_control' => 'sometimes|required|in:live,correspondence', 'mode' => 'sometimes|required|in:multiplayer,practice', 'reduced_board' => 'sometimes|boolean']);
+        $g = $matches->create($r->user(), $v['name'], $v['ranked'], $v['time_control'] ?? 'live', $v['mode'] ?? 'multiplayer', $v['reduced_board'] ?? true);
 
         return response()->json(['code' => $g->code], 201);
     }

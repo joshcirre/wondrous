@@ -18,9 +18,9 @@ class MatchService
 {
     public function __construct(private GameEngine $engine, private ComputerOpponent $computer) {}
 
-    public function create(User $user, string $name, bool $ranked, string $timeControl = 'live', string $mode = 'multiplayer'): Game
+    public function create(User $user, string $name, bool $ranked, string $timeControl = 'live', string $mode = 'multiplayer', bool $reducedBoard = true): Game
     {
-        return Cache::lock('player-activity:'.$user->id, 15)->block(5, fn () => DB::transaction(function () use ($user, $name, $ranked, $timeControl, $mode) {
+        return Cache::lock('player-activity:'.$user->id, 15)->block(5, fn () => DB::transaction(function () use ($user, $name, $ranked, $timeControl, $mode, $reducedBoard) {
             $active = Game::where('mode', 'multiplayer')->where('time_control', 'live')->where(fn ($q) => $q->where('host_id', $user->id)->orWhere('guest_id', $user->id))->where('phase', '!=', 'finished')->first();
             abort_unless(in_array($timeControl, ['live', 'correspondence'], true), 422, 'Invalid time control.');
             abort_unless(in_array($mode, ['multiplayer', 'practice'], true), 422, 'Invalid game mode.');
@@ -33,7 +33,7 @@ class MatchService
                 }
             }
             abort_if($mode === 'multiplayer' && $timeControl === 'live' && $active, 422, 'Finish or leave your live match before creating another live match.');
-            $game = Game::create(['id' => (string) Str::ulid(), 'code' => strtoupper(Str::random(6)), 'name' => $name, 'mode' => $mode, 'ranked' => $timeControl === 'correspondence' ? false : $ranked, 'time_control' => $timeControl, 'host_id' => $user->id, 'phase' => 'lobby', 'state' => $this->engine->create($user->id, $user->name, $user->loadout ?? [])]);
+            $game = Game::create(['id' => (string) Str::ulid(), 'code' => strtoupper(Str::random(6)), 'name' => $name, 'mode' => $mode, 'ranked' => $timeControl === 'correspondence' ? false : $ranked, 'time_control' => $timeControl, 'reduced_board' => $reducedBoard, 'host_id' => $user->id, 'phase' => 'lobby', 'state' => $this->engine->create($user->id, $user->name, $user->loadout ?? [])]);
             $state = $game->state;
             $state['mode'] = $mode;
             $this->record($game, $user->id, 'created', [], $state);

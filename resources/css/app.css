@@ -3554,3 +3554,111 @@ label {
         width: calc(100vw - 24px);
     }
 }
+
+.reduced-board-toggle {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 10px;
+    font-size: 0.84rem;
+    color: var(--text);
+}
+.reduced-board-toggle small {
+    width: 100%;
+    color: var(--muted);
+    font-size: 0.74rem;
+    line-height: 1.45;
+}
+.reduced-board-toggle.compact small {
+    display: none;
+}
+.practice-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 10px;
+}
+.unit-portrait.selected {
+    box-shadow: inset 0 0 0 2px var(--gold-bright);
+}
+.aim-chip {
+    min-width: 92px;
+    padding: 7px 10px 8px;
+    background: #161b16ee;
+    border: 1px solid #edce9188;
+    border-radius: 6px;
+    color: #edce91;
+    text-align: center;
+    font-family: Inter, sans-serif;
+    pointer-events: none;
+}
+.aim-chip strong {
+    display: block;
+    font-size: 1.35rem;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+}
+.aim-chip p {
+    margin: 3px 0 0;
+    font-size: 0.68rem;
+    color: #d5c8a1;
+}
+.aim-chip p.ember,
+.aim-chip .ember {
+    color: #e07a42;
+    font-weight: 650;
+}
+.aim-chip small {
+    display: block;
+    margin-top: 3px;
+    font-size: 0.62rem;
+    color: #9aa48c;
+}
+.board-action-strip {
+    display: flex;
+    gap: 5px;
+    pointer-events: auto;
+}
+.board-action-strip button {
+    border: 1px solid #edce9166;
+    background: #161b16ee;
+    color: #d5c8a1;
+    font-size: 0.68rem;
+    padding: 4px 8px;
+    border-radius: 999px;
+    white-space: nowrap;
+}
+.board-action-strip button.on {
+    border-color: #edce91;
+    color: #edce91;
+    background: #3c3923cc;
+}
+.board-action-strip button.skill.on {
+    border-color: #b79cf2;
+    color: #b79cf2;
+    background: #2a2438cc;
+}
+.board-action-strip button.skill.heal.on {
+    border-color: #8fd19e;
+    color: #8fd19e;
+    background: #1d2a22cc;
+}
+.rest-moon {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: #1a1d18ee;
+    border: 1px dashed #7d8479;
+    color: #c5c8bc;
+    font-size: 0.7rem;
+    font-variant-numeric: tabular-nums;
+}
+.facing-no-block {
+    font-size: 0.58rem;
+    color: #8fd19e;
+    background: #161b16cc;
+    padding: 1px 5px;
+    border-radius: 3px;
+}

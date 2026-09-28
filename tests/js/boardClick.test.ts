@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
     battleTargets,
     resolveBoardClick,
+    resolveBoardHover,
 } from "../../resources/js/lib/boardClick.ts";
 
 describe("resolveBoardClick", () => {
@@ -117,6 +118,20 @@ describe("resolveBoardClick", () => {
         );
 
         assert.deepEqual(decision, { type: "tile", x: 2, y: 2 });
+    });
+});
+
+describe("resolveBoardHover", () => {
+    it("prefers a highlighted move tile over a miniature in front of it", () => {
+        const hover = resolveBoardHover(
+            [
+                { role: "pawn", x: 4, y: 7, unitId: "cleric-e1" },
+                { role: "tile", x: 3, y: 6 },
+            ],
+            [{ x: 3, y: 6, kind: "move" }],
+        );
+
+        assert.deepEqual(hover, { x: 3, y: 6 });
     });
 });
 
