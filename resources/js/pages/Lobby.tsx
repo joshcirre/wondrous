@@ -23,7 +23,7 @@ type LobbyGame = {
     created_at: string;
 };
 export default function Lobby() {
-    const { auth, catalog, games, active, active_games, recent, first_match_available } = usePage<
+    const { auth, catalog, games, active, active_games, recent, first_match_available, progression } = usePage<
         Shared & {
             first_match_available?: boolean;
             games: LobbyGame[];
@@ -50,8 +50,9 @@ export default function Lobby() {
         }
     >().props;
     const [name, setName] = useState(`${auth.user?.name}'s arena`);
+    const unlocks = progression?.unlocks;
     const [mode, setMode] = useState<"ranked" | "friendly" | "correspondence">(
-        "ranked",
+        unlocks?.ranked ? "ranked" : "friendly",
     );
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState("");
@@ -324,6 +325,7 @@ export default function Lobby() {
                     <Eyebrow>The sixfold arena</Eyebrow>
                     <h2>A worthy rival awaits.</h2>
                 </div>
+                {unlocks?.ranked && (
                 <div className="rating-chip">
                     <TrophyIcon />
                     <div>
@@ -331,6 +333,7 @@ export default function Lobby() {
                         <small>Arena rating</small>
                     </div>
                 </div>
+                )}
             </div>
             <section className="lobby-stage">
                 <div className="lobby-invite">
@@ -357,6 +360,7 @@ export default function Lobby() {
                             />
                         </label>
                         <div className="mode-switch">
+                            {unlocks?.ranked && (
                             <button
                                 type="button"
                                 className={mode === "ranked" ? "active" : ""}
@@ -366,6 +370,7 @@ export default function Lobby() {
                                 <TrophyIcon />
                                 Ranked
                             </button>
+                            )}
                             <button
                                 type="button"
                                 className={mode === "friendly" ? "active" : ""}
@@ -375,6 +380,7 @@ export default function Lobby() {
                                 <UserGroupIcon />
                                 Friendly
                             </button>
+                            {unlocks?.correspondence && (
                             <button
                                 type="button"
                                 className={
@@ -385,7 +391,11 @@ export default function Lobby() {
                             >
                                 Correspondence
                             </button>
+                            )}
                         </div>
+                        {!unlocks?.ranked && (
+                            <p className="hint">{progression?.hints.ranked}</p>
+                        )}
                         <p className="mode-description">
                             {mode === "correspondence"
                                 ? "Unranked · 24 hours per turn. Play several games at your own pace. Miss a deadline and forfeit; each draft pick and formation setup also has 24 hours."

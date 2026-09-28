@@ -103,6 +103,7 @@ export default function Game() {
     const props = usePage<Shared & { game: GameType }>().props;
     const viewer = props.auth.user!;
     const catalog = props.catalog;
+    const unlocks = props.progression?.unlocks;
     const [game, setGame] = useState(props.game);
     const [busy, setBusy] = useState(false);
     const busyRef = useRef(false);
@@ -643,7 +644,9 @@ export default function Game() {
                     <p>
                         {state.scenario === "first_match"
                             ? "Your first match. One idea per turn. No ratings, crowns, or card rewards."
-                            : "Practice freely. Choose any six champions; the computer follows the same rules. No ratings, crowns, or card rewards."}
+                            : unlocks?.draft
+                              ? "Practice freely. Choose any six champions; the computer follows the same rules. No ratings, crowns, or card rewards."
+                              : "Practice with the starter squad. No ratings, crowns, or card rewards."}
                     </p>
                     <Link href="/" className="text-link">
                         Leave and resume later <ArrowRightIcon />
@@ -884,6 +887,7 @@ export default function Game() {
                                     </p>
                                 ) : (
                                     <>
+                                        {unlocks?.ranked && (
                                         <strong>
                                             {(state.rewards?.[viewer.id]
                                                 ?.rating_delta || 0) >= 0
@@ -893,12 +897,15 @@ export default function Game() {
                                                 ?.rating_delta || 0}
                                             <span>Rating</span>
                                         </strong>
+                                        )}
+                                        {unlocks?.crowns && (
                                         <strong>
                                             +
                                             {state.rewards?.[viewer.id]
                                                 ?.currency || 0}
                                             <span>Crowns</span>
                                         </strong>
+                                        )}
                                     </>
                                 )}
                                 <Link

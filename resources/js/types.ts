@@ -228,10 +228,33 @@ export type StatusFact = {
     label: string;
 };
 export type StatusCatalog = Record<string, StatusFact>;
+export type ProgressionUnlocks = {
+    formation: boolean;
+    draft: boolean;
+    specialists: boolean;
+    loadouts: boolean;
+    ranked: boolean;
+    crowns: boolean;
+    correspondence: boolean;
+    rankings: boolean;
+};
+export type Progression = {
+    matches_finished: number;
+    has_won: boolean;
+    unlocks: ProgressionUnlocks;
+    hints: {
+        ranked: string;
+        correspondence: string;
+        loadouts: string;
+        rankings: string;
+        crowns: string;
+    };
+};
 export type Shared = {
     auth: { user: User | null };
     flash?: { message?: string };
     catalog: Catalog;
     status_catalog?: StatusCatalog;
+    progression?: Progression;
     [key: string]: unknown;
 };

@@ -741,6 +741,14 @@ final class GameEngine
         $s['events'][] = ['type' => $type] + $payload;
     }
 
+    public function excludeFromPool(array $s, int $playerId, array $excluded): array
+    {
+        $s['pool'][$playerId] = array_values(array_diff($s['pool'][$playerId] ?? [], $excluded));
+        $s['offers'][$playerId] = $this->offers($s, $playerId);
+
+        return $s;
+    }
+
     private function pool(array $loadout): array
     {
         $this->require(count($loadout) <= 4 && count(array_unique($loadout, SORT_REGULAR)) === count($loadout), 'Choose up to four distinct specialist cards.');

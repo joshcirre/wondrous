@@ -9,6 +9,7 @@ use App\Game\CharacterCatalog;
 use App\Game\ComputerOpponent;
 use App\Game\GameEngine;
 use App\Game\LessonCatalog;
+use App\Game\Progression;
 use App\Game\Scenarios\FirstMatch;
 use App\Models\Game;
 use App\Models\User;
@@ -29,6 +30,14 @@ class MatchService
             abort_unless(in_array($mode, ['multiplayer', 'practice'], true), 422, 'Invalid game mode.');
             abort_unless(in_array($scenario, [null, FirstMatch::KEY], true), 422, 'Unknown scenario.');
             abort_if($scenario === FirstMatch::KEY && $mode !== 'practice', 422, 'First match is a practice scenario.');
+            if ($mode === 'multiplayer') {
+                $progress = Progression::for($user);
+                if ($timeControl === 'correspondence') {
+                    abort_unless($progress['unlocks']['correspondence'], 422, Progression::CORRESPONDENCE_HINT);
+                } elseif ($ranked) {
+                    abort_unless($progress['unlocks']['ranked'], 422, Progression::RANKED_HINT);
+                }
+            }
             if ($mode === 'practice') {
                 $timeControl = 'live';
                 $ranked = false;
@@ -48,11 +57,16 @@ class MatchService
             if ($mode === 'practice') {
                 $payload = ['id' => ComputerOpponent::ID, 'name' => 'Practice opponent', 'loadout' => []];
                 $state = $this->engine->apply($game->state, ComputerOpponent::ID, 'join', $payload);
+                if ($scenario !== FirstMatch::KEY && ! Progression::for($user)['unlocks']['draft']) {
+                    $state = $this->engine->excludeFromPool($state, ComputerOpponent::ID, FirstMatch::EXCLUDED);
+                }
                 $this->record($game, null, 'join', $payload, $state);
             }
             if ($scenario === FirstMatch::KEY) {
                 $state = $this->hydrateFirstMatch($game->state);
                 $this->record($game, $user->id, 'scenario', ['scenario' => FirstMatch::KEY], $state);
+            } elseif ($mode === 'practice') {
+                $this->autoProgressPractice($game, $user);
             }
             event(new LobbyUpdated);
 
@@ -221,6 +235,24 @@ class MatchService
         // Commit inside the same transaction as the projection and rewards, before releasing the match lock.
         Verbs::commit();
         DB::table('game_records')->insert(['game_id' => $game->id, 'version' => $game->version, 'actor_id' => $actor, 'action' => $action, 'payload' => json_encode($payload), 'state' => json_encode($state), 'created_at' => now(), 'updated_at' => now()]);
+    }
+
+    private function autoProgressPractice(Game $game, User $user): void
+    {
+        $progress = Progression::for($user);
+        if ($progress['unlocks']['draft']) {
+            return;
+        }
+        foreach (array_column(FirstMatch::playerSquad(), 'character_id') as $characterId) {
+            $state = $this->engine->apply($game->state, $user->id, 'draft', ['character_id' => $characterId]);
+            $this->record($game, $user->id, 'draft', ['character_id' => $characterId], $state);
+            $this->advanceComputer($game);
+        }
+        if (! $progress['unlocks']['formation'] && $game->phase === 'deployment') {
+            $state = $this->engine->apply($game->state, $user->id, 'ready', []);
+            $this->record($game, $user->id, 'ready', [], $state);
+            $this->advanceComputer($game);
+        }
     }
 
     private function hydrateFirstMatch(array $state): array

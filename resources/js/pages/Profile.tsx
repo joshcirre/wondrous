@@ -3,7 +3,7 @@ import Shell, { Eyebrow } from "../components/Shell";
 import type { Shared } from "../types";
 
 export default function Profile() {
-    const { auth, catalog } = usePage<Shared>().props;
+    const { auth, catalog, progression } = usePage<Shared>().props;
     const user = auth.user!;
     const profile = useForm({
         name: user.name,
@@ -27,6 +27,9 @@ export default function Profile() {
                     <p className="muted">
                         Choose your champion portrait and manage your account.
                     </p>
+                    {progression?.unlocks.ranked && (
+                        <p className="muted">Arena rating {user.rating}</p>
+                    )}
                 </div>
             </div>
             <div

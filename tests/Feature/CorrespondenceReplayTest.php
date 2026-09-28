@@ -26,6 +26,7 @@ class CorrespondenceReplayTest extends TestCase
 
     private function createMatch(User $user, string $mode = 'correspondence'): Game
     {
+        $this->ensureProgressionUnlocked($user);
         $response = $this->actingAs($user)->postJson('/games', ['name' => 'A patient contest', 'ranked' => true, 'time_control' => $mode])->assertCreated();
 
         return Game::where('code', $response->json('code'))->firstOrFail();

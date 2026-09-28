@@ -52,6 +52,22 @@ export default function Collection() {
             (filter === "Specialists" && !c.standard) ||
             (filter === "Owned" && (c.standard || owned.includes(c.id))),
     );
+    if (!props.progression?.unlocks.loadouts) {
+        return (
+            <Shell>
+                <Head title="Your warband" />
+                <div className="page-heading">
+                    <div>
+                        <Eyebrow>The living collection</Eyebrow>
+                        <h1>Your warband.</h1>
+                        <p className="muted">
+                            {props.progression?.hints.loadouts}
+                        </p>
+                    </div>
+                </div>
+            </Shell>
+        );
+    }
     return (
         <Shell>
             <Head title="Your warband" />

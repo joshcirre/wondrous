@@ -17,7 +17,11 @@ class MatchFlowTest extends TestCase
 
     private function users(): array
     {
-        return [User::factory()->create(['name' => 'Alice']), User::factory()->create(['name' => 'Bob'])];
+        $host = User::factory()->create(['name' => 'Alice']);
+        $guest = User::factory()->create(['name' => 'Bob']);
+        $this->ensureProgressionUnlocked($host);
+
+        return [$host, $guest];
     }
 
     private function createMatch(User $host): Game
@@ -176,7 +180,7 @@ class MatchFlowTest extends TestCase
         $this->assertDatabaseCount('game_records', $version);
         $this->assertDatabaseCount('verb_events', $version);
         $this->actingAs($host)->postJson('/games', ['name' => 'Another arena', 'ranked' => true])->assertUnprocessable();
-        $this->assertDatabaseCount('games', 1);
+        self::assertSame(1, Game::where('phase', '!=', 'finished')->count());
     }
 
     public function test_verbs_rebuilds_board_without_snapshots_or_rerolling_combat(): void

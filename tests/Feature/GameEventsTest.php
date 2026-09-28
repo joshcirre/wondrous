@@ -29,6 +29,7 @@ class GameEventsTest extends TestCase
 
     private function practice(User $user): Game
     {
+        $this->ensureProgressionUnlocked($user);
         $code = $this->actingAs($user)->postJson('/games', ['name' => 'Practice events', 'ranked' => false, 'mode' => 'practice'])->assertCreated()->json('code');
 
         return Game::where('code', $code)->firstOrFail();

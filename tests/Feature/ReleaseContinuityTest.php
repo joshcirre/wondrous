@@ -12,6 +12,7 @@ class ReleaseContinuityTest extends TestCase
 
     public function test_release_endpoint_is_uncached_and_matches_the_page_release(): void
     {
+        $this->withoutVite();
         $version = $this->getJson('/release')->assertOk()->assertHeader('Cache-Control', 'no-store, private')->json('version');
         $this->actingAs(User::factory()->create())->get('/')->assertInertia(fn ($page) => $page->where('release', $version));
     }
