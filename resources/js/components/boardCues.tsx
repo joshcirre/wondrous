@@ -2,10 +2,7 @@ import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { Html, Line } from "@react-three/drei";
 import { Group, Mesh } from "three";
 import type { AimChip } from "../lib/aimChip";
-import {
-    BADGE_GAP_PX,
-    type StatusBadge,
-} from "../lib/statusCues";
+import { type StatusBadge } from "../lib/statusCues";
 
 export const gold = "#edce91";
 export const goldDeep = "#d5b676";
@@ -624,15 +621,17 @@ export function MoonBadge({ turns }: { turns: number }) {
 export function StatusBadgeRow({ badges }: { badges: StatusBadge[] }) {
     if (!badges.length) return null;
     return (
-        <Html position={[0.36, 1.42, 0]} center sprite>
-            <div
-                className="status-badge-row"
-                data-badge-count={badges.length}
-                style={{ gap: BADGE_GAP_PX }}
-            >
-                {badges.map((badge) => (
+        <group>
+            {badges.map((badge, index) => (
+                <Html
+                    key={badge.id}
+                    position={[0.36 + index * 0.26, 1.42, 0]}
+                    center
+                    occlude={false}
+                    zIndexRange={[180, 0]}
+                    style={{ fontSize: 15 }}
+                >
                     <button
-                        key={badge.id}
                         type="button"
                         className={`status-badge${badge.id === "rest" ? " rest-moon" : ""}`}
                         style={{
@@ -644,13 +643,14 @@ export function StatusBadgeRow({ badges }: { badges: StatusBadge[] }) {
                         aria-label={badge.label}
                         data-label={badge.label}
                         data-status={badge.id}
+                        data-badge-index={index}
                     >
                         <span aria-hidden="true">{badge.glyph}</span>
                         {badge.text}
                     </button>
-                ))}
-            </div>
-        </Html>
+                </Html>
+            ))}
+        </group>
     );
 }
 
