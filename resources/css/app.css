@@ -3833,17 +3833,23 @@ label {
     color: #8fd19e;
     background: #1d2a22cc;
 }
-.rest-moon {
-    display: flex;
-    align-items: center;
-    gap: 3px;
-    padding: 2px 6px;
-    border-radius: 999px;
-    background: #1a1d18ee;
-    border: 1px dashed #7d8479;
-    color: #c5c8bc;
-    font-size: 0.7rem;
-    font-variant-numeric: tabular-nums;
+.status-badge-html {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    pointer-events: none !important;
+}
+.status-badge-label {
+    display: block;
+    pointer-events: none;
+    white-space: nowrap;
+    padding: 3px 7px;
+    border-radius: 4px;
+    background: #161814f2;
+    color: #ece6d4;
+    font-size: 0.62rem;
+    letter-spacing: 0.01em;
+    transform: translateY(-1.15rem);
 }
 .facing-no-block {
     font-size: 0.58rem;

@@ -341,9 +341,10 @@ final class GameEngine
                 $s['units'][$i]['cooldown'] = max(0, $u['cooldown'] - 1);
                 $s['units'][$i]['mana'] = min($u['max_mana'], $u['mana'] + 5);
                 if (($u['statuses']['burn'] ?? 0) > 0) {
-                    $s['units'][$i]['hp'] = max(0, $u['hp'] - 8);
-                    $this->log($s, CharacterCatalog::get($u['character_id'])['name'].' suffered 8 burn damage.');
-                    $this->emit($s, 'status_tick', ['unit_id' => $u['id'], 'owner_id' => $u['owner_id'], 'status' => 'burn', 'amount' => 8]);
+                    $burn = StatusCatalog::amount('burn');
+                    $s['units'][$i]['hp'] = max(0, $u['hp'] - $burn);
+                    $this->log($s, CharacterCatalog::get($u['character_id'])['name'].' suffered '.$burn.' burn damage.');
+                    $this->emit($s, 'status_tick', ['unit_id' => $u['id'], 'owner_id' => $u['owner_id'], 'status' => 'burn', 'amount' => $burn]);
                     if ($s['units'][$i]['hp'] === 0) {
                         $this->death($s, $i, $u['burn_source'] ?? $this->opponent($s, $actorId));
                     }
@@ -513,9 +514,14 @@ final class GameEngine
     {
         $catalog = CharacterCatalog::get($unit['character_id']);
         $activation = $this->probe($oracle, $s, $viewerId, 'face', ['unit_id' => $unit['id'], 'facing' => $unit['facing']]);
+        $reasonCode = $this->activationReasonCode($activation);
+        $spent = $this->unitIsSpent($s, $unit);
         $entry = [
             'can_activate' => $activation === null,
             'reason' => $activation,
+            'reason_code' => $reasonCode,
+            'spent' => $spent,
+            'spent_reason' => $spent ? $this->spentReason($s, $unit) : null,
             'moves' => [],
             'attack' => [],
             'skill' => ['usable' => false, 'reason' => $activation, 'cost' => $catalog['skill']['cost'], 'targets' => []],
@@ -557,6 +563,41 @@ final class GameEngine
         }
 
         return $entry;
+    }
+
+    private function activationReasonCode(?string $reason): ?string
+    {
+        return match ($reason) {
+            null => null,
+            'This character is recovering.' => 'recovering',
+            'This character is stunned.' => 'stunned',
+            'Only one character can activate per turn.' => 'other_active',
+            default => 'blocked',
+        };
+    }
+
+    private function unitIsSpent(array $s, array $unit): bool
+    {
+        if (($unit['recovery'] ?? 0) > 0) {
+            return true;
+        }
+        if (($unit['statuses']['stun'] ?? 0) > 0) {
+            return true;
+        }
+
+        return ($s['active_unit_id'] ?? null) === $unit['id'] && ($s['acted'] ?? false);
+    }
+
+    private function spentReason(array $s, array $unit): string
+    {
+        if (($unit['statuses']['stun'] ?? 0) > 0) {
+            return 'This character is stunned.';
+        }
+        if (($unit['recovery'] ?? 0) > 0) {
+            return 'This character is recovering.';
+        }
+
+        return 'This character has already acted.';
     }
 
     private function probe(self $oracle, array $s, int $actorId, string $type, array $payload): ?string
@@ -664,7 +705,7 @@ final class GameEngine
     private function armorFor(array $s, int $j): int
     {
         $target = $s['units'][$j];
-        $armor = CharacterCatalog::get($target['character_id'])['armor'] + (($target['statuses']['ward'] ?? 0) > 0 ? 12 : 0);
+        $armor = CharacterCatalog::get($target['character_id'])['armor'] + (($target['statuses']['ward'] ?? 0) > 0 ? StatusCatalog::amount('ward') : 0);
         foreach ($s['units'] as $ally) {
             if ($ally['character_id'] === 'herald' && $ally['hp'] > 0 && $ally['owner_id'] === $target['owner_id'] && $this->distance($ally, $target) <= 2) {
                 $armor += 4;

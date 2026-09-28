@@ -103,6 +103,32 @@ describe("resolveBoardClick", () => {
         assert.notEqual(decision.type === "select" && decision.unitId, "wrong-warden");
     });
 
+    it("clicks a stunned enemy as an attack, not a blocked select", () => {
+        const decision = resolveBoardClick(
+            [
+                { role: "pawn", x: 1, y: 2, unitId: "stunned-ranger" },
+                { role: "tile", x: 1, y: 2 },
+            ],
+            [{ x: 1, y: 2, kind: "attack" }],
+            { id: "1-knight", x: 1, y: 3 },
+        );
+
+        assert.deepEqual(decision, { type: "tile", x: 1, y: 2 });
+    });
+
+    it("clicks the tile behind a badged piece as a move", () => {
+        const decision = resolveBoardClick(
+            [
+                { role: "pawn", x: 1, y: 7, unitId: "1-warden" },
+                { role: "tile", x: 1, y: 6 },
+            ],
+            [{ x: 1, y: 6, kind: "move" }],
+            { id: "1-knight", x: 2, y: 7 },
+        );
+
+        assert.deepEqual(decision, { type: "tile", x: 1, y: 6 });
+    });
+
     it("uses the nearest highlighted tile when two highlighted targets lie on the same ray", () => {
         const decision = resolveBoardClick(
             [

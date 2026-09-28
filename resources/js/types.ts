@@ -183,6 +183,9 @@ export type LegalSkill = {
 export type UnitOptions = {
     can_activate: boolean;
     reason: string | null;
+    reason_code?: string | null;
+    spent?: boolean;
+    spent_reason?: string | null;
     moves: LegalMove[];
     attack: LegalAttack[];
     skill: LegalSkill;
@@ -208,9 +211,17 @@ export type Game = {
     created_at: string;
     reward_claimed?: boolean;
 };
+export type StatusFact = {
+    id?: string;
+    name: string;
+    amount?: number | null;
+    label: string;
+};
+export type StatusCatalog = Record<string, StatusFact>;
 export type Shared = {
     auth: { user: User | null };
     flash?: { message?: string };
     catalog: Catalog;
+    status_catalog?: StatusCatalog;
     [key: string]: unknown;
 };

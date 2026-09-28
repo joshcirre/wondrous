@@ -76,7 +76,7 @@ function changes(previous: State | undefined, state: State, catalog: Catalog) {
     });
 }
 export default function Replay() {
-    const { game, frames, catalog, auth } = usePage<
+    const { game, frames, catalog, auth, status_catalog } = usePage<
         Shared & { game: Game; frames: Frame[] }
     >().props;
     const [index, setIndex] = useState(() =>
@@ -381,6 +381,7 @@ export default function Replay() {
                                 <Battlefield
                                     units={state.units}
                                     viewerId={perspective}
+                                    statusFacts={status_catalog}
                                     homeSide={
                                         perspective === state.host_id
                                             ? "south"
