@@ -58,6 +58,13 @@ import {
     statusBadgeRow,
     type StatusFact,
 } from "../lib/statusCues";
+import {
+    CASTLE_POSITION,
+    CASTLE_ROTATION_Y,
+    CLOUD_POSITIONS,
+    sceneryPlacement,
+    type HomeSide,
+} from "../lib/scenery";
 
 type Unit = {
     id: string;
@@ -109,7 +116,7 @@ type Props = {
     } | null;
     deployment?: boolean;
     interactive?: boolean;
-    homeSide?: "north" | "south";
+    homeSide?: HomeSide;
     animation?: AnimationQueue | null;
     onHud?: (hud: {
         inputLocked: boolean;
@@ -161,7 +168,7 @@ function NonInteractive({ children }: { children: ReactNode }) {
     return <group ref={visuals}>{children}</group>;
 }
 
-function FitCamera({ homeSide }: { homeSide: "north" | "south" }) {
+function FitCamera({ homeSide }: { homeSide: HomeSide }) {
     const { camera, size } = useThree();
     useLayoutEffect(() => {
         const c = camera as OrthographicCamera;
@@ -763,12 +770,17 @@ function FallingLeaves() {
         </instancedMesh>
     );
 }
-function Castle() {
+function Castle({ homeSide }: { homeSide: HomeSide }) {
+    const { position, rotationY } = sceneryPlacement(
+        CASTLE_POSITION,
+        homeSide,
+        CASTLE_ROTATION_Y,
+    );
     return (
         <group
-            position={[-0.5, -0.68, -9.5]}
+            position={position}
             scale={0.48}
-            rotation={[0, 0.12, 0]}
+            rotation={[0, rotationY, 0]}
         >
             <mesh position={[0, 0.9, 0]} castShadow>
                 <boxGeometry args={[4.1, 1.8, 0.7]} />
@@ -821,7 +833,7 @@ function Castle() {
         </group>
     );
 }
-function Landscape() {
+function Landscape({ homeSide }: { homeSide: HomeSide }) {
     return (
         <group>
             <mesh
@@ -842,7 +854,7 @@ function Landscape() {
             </mesh>
             <AutumnGrove />
             <FallingLeaves />
-            <Castle />
+            <Castle homeSide={homeSide} />
             {[-1, 1].flatMap((x) =>
                 [-1, 1].map((z) => (
                     <Brazier key={`${x}:${z}`} x={x * 4.45} z={z * 4.45} />
@@ -866,27 +878,26 @@ function Landscape() {
                     />
                 </mesh>
             ))}
-            {[
-                [-12, 6, -15],
-                [-4, 8, -19],
-                [8, 7, -17],
-            ].map(([x, y, z], i) => (
-                <group key={i} position={[x, y, z]}>
-                    {[0, 1, 2].map((j) => (
-                        <mesh
-                            key={j}
-                            position={[j * 1.4, Math.sin(j) * 0.6, 0]}
-                            scale={[2, 1.05, 1]}
-                        >
-                            <icosahedronGeometry args={[1.4, 2]} />
-                            <meshStandardMaterial
-                                color="#fff8e9"
-                                roughness={1}
-                            />
-                        </mesh>
-                    ))}
-                </group>
-            ))}
+            {CLOUD_POSITIONS.map((authored, i) => {
+                const { position } = sceneryPlacement(authored, homeSide);
+                return (
+                    <group key={i} position={position}>
+                        {[0, 1, 2].map((j) => (
+                            <mesh
+                                key={j}
+                                position={[j * 1.4, Math.sin(j) * 0.6, 0]}
+                                scale={[2, 1.05, 1]}
+                            >
+                                <icosahedronGeometry args={[1.4, 2]} />
+                                <meshStandardMaterial
+                                    color="#fff8e9"
+                                    roughness={1}
+                                />
+                            </mesh>
+                        ))}
+                    </group>
+                );
+            })}
         </group>
     );
 }
@@ -1082,7 +1093,7 @@ function Scene({
                 maxZoom={110}
                 enableDamping
             />
-            <Landscape />
+            <Landscape homeSide={homeSide} />
             <mesh position={[0, -0.36, 0]} receiveShadow castShadow>
                 <boxGeometry args={[9, 0.6, 9]} />
                 <meshStandardMaterial color="#75644e" roughness={0.85} />
