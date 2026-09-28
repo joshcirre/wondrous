@@ -3,7 +3,7 @@ import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber"
 import { Billboard, OrbitControls } from "@react-three/drei";
 import { collectBoardHits, resolveBoardClick, resolveBoardHover } from "../lib/boardClick";
 import type { AimChip } from "../lib/aimChip";
-import type { AnimationQueue, QueueView } from "../lib/animationQueue";
+import { htmlBoardFloats, type AnimationQueue, type QueueView } from "../lib/animationQueue";
 import {
     ActionStrip,
     AimChipCard,
@@ -923,7 +923,7 @@ function MotionDriver({
             {view.effects.map((effect) => (
                 <MotionEffectMesh key={effect.id} {...effect} />
             ))}
-            {view.floats.map((item) => (
+            {htmlBoardFloats(view.floats).map((item) => (
                 <group key={item.id} position={tilePos(item.x, item.y, 0)}>
                     <FloatingResultCard
                         kind={item.kind}

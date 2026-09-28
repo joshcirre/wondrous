@@ -1067,6 +1067,9 @@ export default function Game() {
                             data-awaiting-opponent={awaitingOpponent ? "1" : "0"}
                             data-anim-beat={animHud.beat}
                             data-floats={animHud.floats}
+                            data-board-floats={String(
+                                animHud.floatTitle ? 1 : 0,
+                            )}
                             data-death-banners={animHud.deathBanners}
                             data-reduced-motion={reducedMotionOn ? "1" : "0"}
                         >
@@ -1197,24 +1200,6 @@ export default function Game() {
                                     {liveTurnBanner}
                                 </div>
                             )}
-                            {animHud.floatScreens.map((item) => (
-                                <div
-                                    key={item.id}
-                                    className={`board-float-overlay ${item.kind}`}
-                                    data-float-overlay={`${item.kind}:${item.title}:${item.value ?? ""}:${item.chance ?? ""}`}
-                                    data-float-tile={`${item.tileX},${item.tileY}`}
-                                    data-float-pos={`${item.left.toFixed(1)},${item.top.toFixed(1)}`}
-                                    style={{
-                                        left: `${item.left}%`,
-                                        top: `${item.top}%`,
-                                        opacity: item.opacity,
-                                    }}
-                                >
-                                    {item.value !== undefined && <strong>{item.value}</strong>}
-                                    <span>{item.title}</span>
-                                    {item.chance !== undefined && <small>{item.chance}%</small>}
-                                </div>
-                            ))}
                             {animHud.deathBanners && (
                                 <div
                                     className="death-banner-overlay"

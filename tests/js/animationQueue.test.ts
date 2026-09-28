@@ -4,6 +4,8 @@ import {
     TIMING,
     createAnimationQueue,
     detectConfirmedSwap,
+    htmlBoardFloats,
+    projectedOverlayFloats,
     skillVfx,
     turnBannerText,
 } from "../../resources/js/lib/animationQueue.ts";
@@ -419,6 +421,27 @@ describe("createAnimationQueue", () => {
         q.advance(time.add(1));
         assert.equal(q.view().inputLocked, false);
         assert.equal(q.view().floats.length, 0);
+    });
+
+    it("draws one board float per result and never both Html and a CSS overlay", () => {
+        const { q } = queue({ reducedMotion: true });
+        q.pushEvents([attackEvent()], { units });
+        const floats = q.view().floats;
+        assert.equal(floats.length, 1);
+        assert.equal(htmlBoardFloats(floats).length, 1);
+        assert.equal(projectedOverlayFloats(floats).length, 0);
+        assert.equal(
+            htmlBoardFloats(floats).length + projectedOverlayFloats(floats).length,
+            1,
+        );
+
+        const moving = queue();
+        moving.q.pushEvents([attackEvent({ outcome: "miss", damage: 0 })], { units });
+        moving.q.advance(moving.time.add(TIMING.projectileMs));
+        const live = moving.q.view().floats;
+        assert.equal(live.length, 1);
+        assert.equal(htmlBoardFloats(live).length, 1);
+        assert.equal(projectedOverlayFloats(live).length, 0);
     });
 
     it("builds cue 8 floats only from the event payload", () => {

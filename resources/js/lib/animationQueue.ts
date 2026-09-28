@@ -135,6 +135,17 @@ export type QueueView = {
     effects: MotionEffect[];
 };
 
+/** On-board result chip. Header copy is separate and may also show the payload. */
+export const BOARD_FLOAT_CHANNEL: "html" | "css" = "html";
+
+export function htmlBoardFloats(floats: FloatingResult[]): FloatingResult[] {
+    return BOARD_FLOAT_CHANNEL === "html" ? floats : [];
+}
+
+export function projectedOverlayFloats(floats: FloatingResult[]): FloatingResult[] {
+    return BOARD_FLOAT_CHANNEL === "css" ? floats : [];
+}
+
 type FloatSpec = Omit<FloatingResult, "rise" | "opacity"> & {
     born: number;
 };

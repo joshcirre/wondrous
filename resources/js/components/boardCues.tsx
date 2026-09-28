@@ -444,7 +444,10 @@ export function FloatingResultCard({
             zIndexRange={[200, 0]}
             style={{ pointerEvents: "none", opacity, zIndex: 20 }}
         >
-            <div className={`board-float ${kind}`}>
+            <div
+                className={`board-float ${kind}`}
+                data-float-overlay={`${kind}:${title}:${value ?? ""}:${chance ?? ""}`}
+            >
                 {value !== undefined && <strong>{value}</strong>}
                 <span>{title}</span>
                 {chance !== undefined && <small>{chance}%</small>}
