@@ -193,7 +193,7 @@ export default function Game() {
         connection?.bind("unavailable", offline);
 
         const motion = new URLSearchParams(window.location.search).get("motion");
-        const timer = setInterval(refresh, motion === "slow" ? 400 : 3000);
+        const timer = setInterval(refresh, motion === "slow" || motion === "reduce" ? 400 : 3000);
         window.addEventListener("focus", refresh);
         window.addEventListener("online", refresh);
         return () => {
