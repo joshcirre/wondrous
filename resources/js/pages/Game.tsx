@@ -70,6 +70,10 @@ export default function Game() {
         floats: "",
         deathBanners: "",
         beat: "",
+        floatKind: "",
+        floatTitle: "",
+        floatValue: "",
+        floatChance: "",
     });
     const queueRef = useRef<AnimationQueue | null>(null);
     if (!queueRef.current) {
@@ -1010,6 +1014,10 @@ export default function Game() {
                                             floats: hud.floats,
                                             deathBanners: hud.deathBanners,
                                             beat: hud.beat,
+                                            floatKind: hud.floatKind,
+                                            floatTitle: hud.floatTitle,
+                                            floatValue: hud.floatValue,
+                                            floatChance: hud.floatChance,
                                         });
                                         if (hud.inputLocked !== animLockedRef.current) {
                                             animLockedRef.current = hud.inputLocked;
@@ -1025,6 +1033,21 @@ export default function Game() {
                             {busy && (
                                 <div className="board-busy">
                                     <ArrowPathIcon /> Resolving…
+                                </div>
+                            )}
+                            {animHud.turnBanner && (
+                                <div className="turn-banner-overlay" data-turn-banner-overlay={animHud.turnBanner}>
+                                    {animHud.turnBanner}
+                                </div>
+                            )}
+                            {animHud.floatTitle && (
+                                <div
+                                    className={`board-float-overlay ${animHud.floatKind}`}
+                                    data-float-overlay={`${animHud.floatKind}:${animHud.floatTitle}:${animHud.floatValue}:${animHud.floatChance}`}
+                                >
+                                    {animHud.floatValue && <strong>{animHud.floatValue}</strong>}
+                                    <span>{animHud.floatTitle}</span>
+                                    {animHud.floatChance && <small>{animHud.floatChance}%</small>}
                                 </div>
                             )}
                         </div>

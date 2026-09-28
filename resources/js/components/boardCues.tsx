@@ -441,7 +441,9 @@ export function FloatingResultCard({
             position={[0, 1.55 + worldRise, 0]}
             center
             sprite
-            style={{ pointerEvents: "none", opacity }}
+            occlude={false}
+            zIndexRange={[200, 0]}
+            style={{ pointerEvents: "none", opacity, zIndex: 20 }}
         >
             <div className={`board-float ${kind}`}>
                 {value !== undefined && <strong>{value}</strong>}

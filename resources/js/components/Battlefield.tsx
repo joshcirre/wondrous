@@ -103,6 +103,10 @@ type Props = {
         floats: string;
         deathBanners: string;
         beat: string;
+        floatKind: string;
+        floatTitle: string;
+        floatValue: string;
+        floatChance: string;
     }) => void;
 };
 
@@ -862,6 +866,7 @@ function MotionDriver({
         ].join("|");
         if (key !== hudKey.current) {
             hudKey.current = key;
+            const primary = next.floats[0];
             onHud?.({
                 inputLocked: next.inputLocked,
                 turnBanner: next.turnBanner?.text ?? "",
@@ -870,6 +875,11 @@ function MotionDriver({
                     .join(","),
                 deathBanners: next.deathBanners.map((item) => item.unitId).join(","),
                 beat: next.currentType ?? "",
+                floatKind: primary?.kind ?? "",
+                floatTitle: primary?.title ?? "",
+                floatValue: primary?.value !== undefined ? String(primary.value) : "",
+                floatChance:
+                    primary?.chance !== undefined ? String(primary.chance) : "",
             });
         }
     });
