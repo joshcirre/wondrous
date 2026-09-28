@@ -77,6 +77,7 @@ export default function Game() {
         floatChance: "",
     });
     const queueRef = useRef<AnimationQueue | null>(null);
+    const floatLinger = useRef<number>(0);
     if (!queueRef.current) {
         queueRef.current = createAnimationQueue({
             viewerId: viewer.id,
@@ -84,6 +85,11 @@ export default function Game() {
                 props.game.state.players.find((player) => player.id === id)?.name ??
                 "Opponent",
         });
+    }
+    if (typeof window !== "undefined") {
+        (
+            window as Window & { __wondrousQueue?: AnimationQueue }
+        ).__wondrousQueue = queueRef.current;
     }
     const seenVersion = useRef(props.game.version);
     const prevUnits = useRef(props.game.state.units);
@@ -1018,15 +1024,31 @@ export default function Game() {
                                     interactive={!busy && !animLocked}
                                     animation={queueRef.current}
                                     onHud={(hud) => {
-                                        setAnimHud({
-                                            turnBanner: hud.turnBanner,
-                                            floats: hud.floats,
-                                            deathBanners: hud.deathBanners,
-                                            beat: hud.beat,
-                                            floatKind: hud.floatKind,
-                                            floatTitle: hud.floatTitle,
-                                            floatValue: hud.floatValue,
-                                            floatChance: hud.floatChance,
+                                        setAnimHud((prev) => {
+                                            const next = {
+                                                turnBanner: hud.turnBanner,
+                                                floats: hud.floats || prev.floats,
+                                                deathBanners: hud.deathBanners,
+                                                beat: hud.beat,
+                                                floatKind: hud.floatKind || prev.floatKind,
+                                                floatTitle: hud.floatTitle || prev.floatTitle,
+                                                floatValue: hud.floatValue || prev.floatValue,
+                                                floatChance: hud.floatChance || prev.floatChance,
+                                            };
+                                            if (hud.floatTitle) {
+                                                window.clearTimeout(floatLinger.current);
+                                                floatLinger.current = window.setTimeout(() => {
+                                                    setAnimHud((held) => ({
+                                                        ...held,
+                                                        floats: "",
+                                                        floatKind: "",
+                                                        floatTitle: "",
+                                                        floatValue: "",
+                                                        floatChance: "",
+                                                    }));
+                                                }, 3000);
+                                            }
+                                            return next;
                                         });
                                         if (hud.inputLocked !== animLockedRef.current) {
                                             animLockedRef.current = hud.inputLocked;
