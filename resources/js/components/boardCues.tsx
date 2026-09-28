@@ -462,14 +462,23 @@ export function DeathBannerMarker({
     const color = friendly ? teal : teamRed;
     return (
         <group>
-            <mesh position={[0, 0.28, 0]}>
-                <boxGeometry args={[0.03, 0.42, 0.03]} />
+            <mesh position={[0, 0.42, 0]}>
+                <boxGeometry args={[0.05, 0.72, 0.05]} />
                 <meshBasicMaterial color="#d8c9a1" />
             </mesh>
-            <mesh position={[0.1, 0.4, 0]}>
-                <boxGeometry args={[0.2, 0.14, 0.02]} />
+            <mesh position={[0.22, 0.62, 0]}>
+                <boxGeometry args={[0.38, 0.24, 0.03]} />
                 <meshBasicMaterial color={color} />
             </mesh>
+            <Html
+                position={[0.12, 1.05, 0]}
+                center
+                style={{ pointerEvents: "none" }}
+            >
+                <div className={`death-flag-label ${friendly ? "teal" : "red"}`}>
+                    Fallen
+                </div>
+            </Html>
         </group>
     );
 }

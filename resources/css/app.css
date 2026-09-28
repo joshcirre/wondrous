@@ -1443,6 +1443,47 @@ small {
 .board-float-overlay.heal {
     color: #8fd19e;
 }
+.death-banner-overlay {
+    position: absolute;
+    left: 50%;
+    bottom: 18px;
+    transform: translateX(-50%);
+    z-index: 6;
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: Cinzel, Georgia, serif;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #f3e2b3;
+    background: #111a13ee;
+    border: 1px solid #d99088;
+    border-radius: 4px;
+    padding: 7px 14px;
+}
+.death-banner-overlay i {
+    display: block;
+    width: 16px;
+    height: 12px;
+    background: #d99088;
+    box-shadow: -3px 2px 0 #d8c9a1;
+}
+.death-flag-label {
+    font-family: Cinzel, Georgia, serif;
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 3px;
+    background: #111a13ee;
+}
+.death-flag-label.red {
+    color: #d99088;
+}
+.death-flag-label.teal {
+    color: #82b7a4;
+}
 .unit-panel {
     border-left: 1px solid var(--line);
     background: #1c231b;

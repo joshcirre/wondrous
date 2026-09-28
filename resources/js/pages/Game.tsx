@@ -64,6 +64,7 @@ export default function Game() {
     const [busy, setBusy] = useState(false);
     const busyRef = useRef(false);
     const [animLocked, setAnimLocked] = useState(false);
+    const [reducedMotionOn, setReducedMotionOn] = useState(false);
     const animLockedRef = useRef(false);
     const [animHud, setAnimHud] = useState({
         turnBanner: "",
@@ -170,8 +171,15 @@ export default function Game() {
         };
     }, []);
     useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const forced =
+            params.get("motion") === "reduce" || params.has("reduced");
         const media = window.matchMedia("(prefers-reduced-motion: reduce)");
-        const apply = () => queueRef.current?.setReducedMotion(media.matches);
+        const apply = () => {
+            const on = forced || media.matches;
+            setReducedMotionOn(on);
+            queueRef.current?.setReducedMotion(on);
+        };
         apply();
         media.addEventListener("change", apply);
         return () => media.removeEventListener("change", apply);
@@ -921,6 +929,7 @@ export default function Game() {
                             data-anim-beat={animHud.beat}
                             data-floats={animHud.floats}
                             data-death-banners={animHud.deathBanners}
+                            data-reduced-motion={reducedMotionOn ? "1" : "0"}
                         >
                             <Suspense
                                 fallback={
@@ -1048,6 +1057,15 @@ export default function Game() {
                                     {animHud.floatValue && <strong>{animHud.floatValue}</strong>}
                                     <span>{animHud.floatTitle}</span>
                                     {animHud.floatChance && <small>{animHud.floatChance}%</small>}
+                                </div>
+                            )}
+                            {animHud.deathBanners && (
+                                <div
+                                    className="death-banner-overlay"
+                                    data-death-banner-overlay={animHud.deathBanners}
+                                >
+                                    <i />
+                                    <span>Fallen banner remains</span>
                                 </div>
                             )}
                         </div>
