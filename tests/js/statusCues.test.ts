@@ -15,6 +15,7 @@ import {
     STATUS_OVERLAY_POINTER_EVENTS,
     STATUS_STYLE,
     badgeChipSize,
+    badgeLocalOffset,
     badgeRowWorldWidth,
     badgeWorldX,
     resultAnchorY,
@@ -155,6 +156,35 @@ describe("statusBadgeRow", () => {
             assert.ok(Math.abs((xs[0] + xs[xs.length - 1]) / 2) < 1e-6);
         });
     }
+
+    it("offsets chips on local X only so one row billboard stays horizontal", () => {
+        const count = 5;
+        const xs: number[] = [];
+        for (let i = 0; i < count; i++) {
+            const [x, y, z] = badgeLocalOffset(i, count);
+            assert.equal(x, badgeWorldX(i, count));
+            assert.equal(y, 0);
+            assert.equal(z, 0);
+            xs.push(x);
+        }
+        assert.ok(Math.abs((xs[0] + xs[xs.length - 1]) / 2) < 1e-6);
+    });
+
+    it("keeps the whole badge row above the health bar plus a gap", () => {
+        const healthTop = HEALTH_BAR_Y + HEALTH_BAR_H / 2;
+        for (const count of [1, 2, 3, 4, 5]) {
+            const { height } = badgeChipSize(count);
+            const chipBottom = BADGE_ROW_Y - height / 2;
+            assert.ok(
+                chipBottom > healthTop,
+                `count ${count}: chip bottom ${chipBottom} overlaps health top ${healthTop}`,
+            );
+            assert.ok(
+                chipBottom - healthTop >= 0.08 - 1e-6,
+                `count ${count}: gap ${chipBottom - healthTop} is too small`,
+            );
+        }
+    });
 
     it("never lets status overlays take a board pointer", () => {
         assert.equal(STATUS_OVERLAY_POINTER_EVENTS, "none");

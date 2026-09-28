@@ -12,7 +12,7 @@ import {
     STATUS_OVERLAY_POINTER_EVENTS,
     STATUS_STYLE,
     badgeChipSize,
-    badgeWorldX,
+    badgeLocalOffset,
     resultAnchorY,
     type StatusBadge,
 } from "../lib/statusCues";
@@ -736,10 +736,7 @@ function StatusBadgeChip({
     const { width, height } = badgeChipSize(count);
     if (opacity <= 0.01) return null;
     return (
-        <Billboard
-            position={[badgeWorldX(index, count), BADGE_ROW_Y, 0]}
-            userData={{ cueOpaque: true }}
-        >
+        <group position={badgeLocalOffset(index, count)} userData={{ cueOpaque: true }}>
             <mesh renderOrder={8} userData={{ cueOpaque: true }}>
                 <planeGeometry args={[width, height]} />
                 <meshBasicMaterial
@@ -772,7 +769,7 @@ function StatusBadgeChip({
                     </span>
                 </Html>
             )}
-        </Billboard>
+        </group>
     );
 }
 
@@ -818,7 +815,11 @@ export function StatusBadgeRow({
     });
     if (!badges.length) return null;
     return (
-        <group userData={{ cueOpaque: true }} visible={fade > 0.01}>
+        <Billboard
+            position={[0, BADGE_ROW_Y, 0]}
+            userData={{ cueOpaque: true }}
+            visible={fade > 0.01}
+        >
             {badges.map((badge, index) => (
                 <StatusBadgeChip
                     key={badge.id}
@@ -829,7 +830,7 @@ export function StatusBadgeRow({
                     opacity={fade}
                 />
             ))}
-        </group>
+        </Billboard>
     );
 }
 
