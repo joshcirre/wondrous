@@ -37,6 +37,11 @@ export function FadeGroup({
     useLayoutEffect(() => {
         ref.current?.traverse((object) => {
             if (!(object instanceof Mesh)) return;
+            let node: Mesh | Group | null = object;
+            while (node) {
+                if (node.userData.cueOpaque) return;
+                node = node.parent as Mesh | Group | null;
+            }
             const materials = Array.isArray(object.material)
                 ? object.material
                 : [object.material];
@@ -88,16 +93,16 @@ export function DashedRing({
     y?: number;
 }) {
     return (
-        <group>
+        <group userData={{ cueOpaque: true }}>
             {Array.from({ length: 14 }, (_, i) => (
                 <mesh
                     key={i}
                     rotation={[-Math.PI / 2, 0, (i * Math.PI) / 7]}
                     position={[0, y, 0]}
-                    renderOrder={3}
+                    renderOrder={4}
                 >
                     <ringGeometry
-                        args={[radius, radius + 0.07, 12, 1, 0, Math.PI / 14]}
+                        args={[radius, radius + 0.1, 12, 1, 0, Math.PI / 16]}
                     />
                     <meshBasicMaterial
                         color={spentGrey}
@@ -145,11 +150,11 @@ export function BaseFacingArrow({
     color: string;
     tucked?: boolean;
 }) {
-    const size = tucked ? 0.09 : 0.16;
-    const z = tucked ? -0.2 : -0.5;
+    const size = tucked ? 0.16 : 0.3;
+    const z = tucked ? -0.28 : -0.46;
     return (
-        <group position={[0, 0.055, z]}>
-            <mesh rotation={[-Math.PI / 2, 0, Math.PI]} renderOrder={6}>
+        <group position={[0, 0.07, z]} userData={{ cueOpaque: true }}>
+            <mesh rotation={[-Math.PI / 2, 0, Math.PI]} renderOrder={7}>
                 <circleGeometry args={[size, 3]} />
                 <meshBasicMaterial
                     color={color}
@@ -160,10 +165,10 @@ export function BaseFacingArrow({
             {!tucked && (
                 <mesh
                     rotation={[-Math.PI / 2, 0, 0]}
-                    position={[0, 0, 0.08]}
-                    renderOrder={6}
+                    position={[0, 0, 0.14]}
+                    renderOrder={7}
                 >
-                    <planeGeometry args={[0.055, 0.12]} />
+                    <planeGeometry args={[0.11, 0.22]} />
                     <meshBasicMaterial
                         color={color}
                         depthTest={false}
@@ -642,8 +647,8 @@ function badgeInk(color: string): string {
 
 function makeBadgeTexture(badge: StatusBadge): CanvasTexture {
     const canvas = document.createElement("canvas");
-    canvas.width = 256;
-    canvas.height = 160;
+    canvas.width = 384;
+    canvas.height = 224;
     const ctx = canvas.getContext("2d");
     if (!ctx) {
         return new CanvasTexture(canvas);
@@ -651,18 +656,18 @@ function makeBadgeTexture(badge: StatusBadge): CanvasTexture {
     const ink = badgeInk(badge.color);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = badge.color;
-    roundRect(ctx, 8, 12, 240, 136, 40);
+    roundRect(ctx, 10, 16, 364, 192, 48);
     ctx.fill();
-    ctx.lineWidth = 8;
+    ctx.lineWidth = 14;
     ctx.strokeStyle = "#141612";
     ctx.stroke();
     ctx.fillStyle = ink;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.font = "700 72px Cinzel, serif";
-    ctx.fillText(badge.glyph, 78, 82);
-    ctx.font = "700 70px Inter, sans-serif";
-    ctx.fillText(badge.text, 176, 84);
+    ctx.font = "800 108px Cinzel, Georgia, serif";
+    ctx.fillText(badge.glyph, 118, 118);
+    ctx.font = "800 104px Inter, system-ui, sans-serif";
+    ctx.fillText(badge.text, 268, 120);
     const texture = new CanvasTexture(canvas);
     texture.colorSpace = SRGBColorSpace;
     texture.needsUpdate = true;
@@ -702,22 +707,32 @@ function StatusBadgeChip({
     useEffect(() => () => texture.dispose(), [texture]);
     return (
         <Billboard
-            position={[(index - (count - 1) / 2) * 0.7, 1.98, 0]}
+            position={[(index - (count - 1) / 2) * 1.12, 2.28, 0]}
+            userData={{ cueOpaque: true }}
         >
-            <mesh renderOrder={8}>
-                <planeGeometry args={[0.66, 0.4]} />
+            <mesh renderOrder={8} userData={{ cueOpaque: true }}>
+                <planeGeometry args={[1.05, 0.62]} />
                 <meshBasicMaterial
                     map={texture}
                     transparent
                     depthTest={false}
                     depthWrite={false}
+                    toneMapped={false}
                 />
             </mesh>
             <Html
                 center
                 occlude={false}
                 zIndexRange={[180, 0]}
-                style={{ fontSize: 16 }}
+                style={{
+                    background: "transparent",
+                    border: "none",
+                    padding: 0,
+                    width: 0,
+                    height: 0,
+                    overflow: "visible",
+                }}
+                wrapperClass="status-badge-html"
             >
                 <button
                     type="button"
@@ -754,7 +769,7 @@ export function MoonBadge({ turns }: { turns: number }) {
 export function StatusBadgeRow({ badges }: { badges: StatusBadge[] }) {
     if (!badges.length) return null;
     return (
-        <group>
+        <group userData={{ cueOpaque: true }}>
             {badges.map((badge, index) => (
                 <StatusBadgeChip
                     key={badge.id}

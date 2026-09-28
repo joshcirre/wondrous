@@ -3833,10 +3833,15 @@ label {
     color: #8fd19e;
     background: #1d2a22cc;
 }
+.status-badge-html {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
 .status-badge-hit {
     display: block;
-    width: 2.7rem;
-    height: 1.7rem;
+    width: 4.2rem;
+    height: 2.5rem;
     padding: 0;
     border: 0;
     background: transparent;

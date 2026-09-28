@@ -208,6 +208,7 @@ function Pawn({
 }) {
     const group = useRef<Group>(null);
     const facing = useRef<Group>(null);
+    const facingCue = useRef<Group>(null);
     const health = useRef<Mesh>(null);
     const direction =
         (
@@ -249,6 +250,9 @@ function Pawn({
                 Math.cos(direction - facing.current.rotation.y),
             );
             facing.current.rotation.y += delta * (1 - Math.exp(-14 * dt));
+            if (facingCue.current) {
+                facingCue.current.rotation.y = facing.current.rotation.y;
+            }
         }
         if (health.current?.material) {
             const material = health.current.material as MeshBasicMaterial;
@@ -320,9 +324,6 @@ function Pawn({
                             />
                         </>
                     )}
-                    {spent.spent && showMiniature && (
-                        <DashedRing radius={0.37} y={0.02} />
-                    )}
                     {aimHere?.showFacingRing && showMiniature ? (
                         <SplitFacingRing facing={unit.facing ?? "south"} />
                     ) : (
@@ -354,14 +355,6 @@ function Pawn({
                             id={unit.character_id}
                             color={bodyColor}
                         />
-                        {living && (
-                            <BaseFacingArrow
-                                color={team}
-                                tucked={Boolean(
-                                    aimHere?.showFacingRing || facingControls,
-                                )}
-                            />
-                        )}
                     </group>
                     {!motionRef && <CombatEffect hp={unit.hp} mana={unit.mana} />}
                     <Billboard visible={showMiniature} position={[0, 1.37, 0]}>
@@ -401,21 +394,6 @@ function Pawn({
                             />
                         </mesh>
                     </Billboard>
-                    {badges.length > 0 && <StatusBadgeRow badges={badges} />}
-                    {spent.reason && living && (
-                        <Html
-                            position={[0, 0.28, 0]}
-                            center
-                            style={{ pointerEvents: "auto" }}
-                        >
-                            <span
-                                className="spent-reason"
-                                aria-label={spent.reason}
-                                tabIndex={0}
-                                data-label={spent.reason}
-                            />
-                        </Html>
-                    )}
                     {faded && showMiniature && (
                         <GoldRing
                             radius={0.33}
@@ -426,6 +404,41 @@ function Pawn({
                         />
                     )}
                 </FadeGroup>
+                {spent.spent && showMiniature && (
+                    <DashedRing radius={0.38} y={0.025} />
+                )}
+                {living && (
+                    <group
+                        ref={facingCue}
+                        rotation={initialDirection.current}
+                        visible={showMiniature}
+                    >
+                        <BaseFacingArrow
+                            color={team}
+                            tucked={Boolean(
+                                aimHere?.showFacingRing || facingControls,
+                            )}
+                        />
+                    </group>
+                )}
+                {badges.length > 0 && <StatusBadgeRow badges={badges} />}
+                {spent.reason && living && (
+                    <Html
+                        position={[0, 0.28, 0]}
+                        center
+                        style={{
+                            pointerEvents: "auto",
+                            background: "transparent",
+                        }}
+                    >
+                        <span
+                            className="spent-reason"
+                            aria-label={spent.reason}
+                            tabIndex={0}
+                            data-label={spent.reason}
+                        />
+                    </Html>
+                )}
                 {selected && actionStrip && (
                     <ActionStrip {...actionStrip} />
                 )}
