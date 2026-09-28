@@ -423,6 +423,32 @@ describe("createAnimationQueue", () => {
         assert.equal(q.view().floats.length, 0);
     });
 
+    it("holds float opacity for 600 ms, fades over the last 300 ms, and rises 24 px", () => {
+        const moving = queue();
+        moving.q.pushEvents([attackEvent()], { units });
+        moving.q.advance(moving.time.add(TIMING.projectileMs));
+        const born = moving.q.view().floats[0];
+        assert.equal(born.opacity, 1);
+        assert.equal(born.rise, 0);
+        assert.equal(TIMING.floatMs - TIMING.floatFadeMs, 600);
+        assert.equal(TIMING.floatRisePx, 24);
+
+        moving.q.advance(moving.time.add(600));
+        const peak = moving.q.view().floats[0];
+        assert.equal(peak.opacity, 1);
+        assert.equal(peak.rise, TIMING.floatRisePx * (600 / TIMING.floatMs));
+
+        moving.q.advance(moving.time.add(150));
+        const fading = moving.q.view().floats[0];
+        assert.equal(fading.opacity, 0.5);
+        assert.equal(fading.rise, TIMING.floatRisePx * (750 / TIMING.floatMs));
+
+        moving.q.advance(moving.time.add(149));
+        const last = moving.q.view().floats[0];
+        assert.ok(last.opacity > 0 && last.opacity < 0.01);
+        assert.ok(last.rise > 23.9 && last.rise <= 24);
+    });
+
     it("draws one board float per result and never both Html and a CSS overlay", () => {
         const { q } = queue({ reducedMotion: true });
         q.pushEvents([attackEvent()], { units });

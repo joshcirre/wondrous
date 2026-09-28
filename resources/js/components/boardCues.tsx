@@ -440,9 +440,15 @@ export function FloatingResultCard({
         <Html
             position={[0, 1.55 + worldRise, 0]}
             center
+            transform={false}
             occlude={false}
             zIndexRange={[200, 0]}
-            style={{ pointerEvents: "none", opacity, zIndex: 20 }}
+            style={{
+                pointerEvents: "none",
+                opacity,
+                zIndex: 20,
+                fontSize: 16,
+            }}
         >
             <div
                 className={`board-float ${kind}`}

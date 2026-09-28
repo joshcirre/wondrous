@@ -1378,36 +1378,38 @@ small {
     align-items: center;
     gap: 0;
     font-family: Cinzel, Georgia, serif;
-    text-shadow: 0 1px 4px #1a1208cc;
+    text-shadow: 0 2px 8px #1a1208cc;
     line-height: 1;
     white-space: nowrap;
+    text-align: center;
+    background: #111a13ee;
+    border: 1px solid currentColor;
+    border-radius: 4px;
+    padding: 10px 22px;
+    pointer-events: none;
 }
 .board-float strong {
-    font-size: 1.7rem;
+    font-size: 2.4rem;
     letter-spacing: 0.02em;
 }
 .board-float span {
-    font-size: 0.72rem;
-    letter-spacing: 0.14em;
+    font-size: 0.95rem;
+    letter-spacing: 0.16em;
     text-transform: uppercase;
 }
 .board-float small {
-    margin-top: 2px;
-    font-size: 0.68rem;
-    letter-spacing: 0.04em;
-    opacity: 0.9;
+    margin-top: 3px;
+    font-size: 0.85rem;
 }
-.board-float.hit {
-    color: #e07a42;
-}
+.board-float.hit,
 .board-float.hit strong {
     color: #ff8a4a;
 }
 .board-float.block {
-    color: #c5cdd1;
+    color: #d5dee2;
 }
 .board-float.miss {
-    color: #7d8479;
+    color: #9aa196;
 }
 .board-float.heal {
     color: #8fd19e;
