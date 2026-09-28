@@ -34,6 +34,54 @@ import type {
     Shared,
 } from "../types";
 import { aimChip } from "../lib/aimChip";
+import {
+    createAnimationQueue,
+    detectConfirmedSwap,
+    type AnimationQueue,
+    type QueueView,
+} from "../lib/animationQueue";
+type FloatScreen = {
+    id: string;
+    kind: string;
+    title: string;
+    value?: number;
+    chance?: number;
+    left: number;
+    top: number;
+    opacity: number;
+    tileX: number;
+    tileY: number;
+};
+type AnimHud = {
+    turnBanner: string;
+    opponentPlaying: boolean;
+    floats: string;
+    deathBanners: string;
+    beat: string;
+    floatKind: string;
+    floatTitle: string;
+    floatValue: string;
+    floatChance: string;
+    floatScreens: FloatScreen[];
+};
+function snapshotHud(view: QueueView, screens: FloatScreen[] = []): AnimHud & { inputLocked: boolean } {
+    const primary = view.floats[0];
+    return {
+        inputLocked: view.inputLocked,
+        turnBanner: view.turnBanner?.text ?? "",
+        opponentPlaying: view.opponentPlaying,
+        floats: view.floats
+            .map((item) => `${item.kind}:${item.value ?? item.chance ?? ""}`)
+            .join(","),
+        deathBanners: view.deathBanners.map((item) => item.unitId).join(","),
+        beat: view.currentType ?? "",
+        floatKind: primary?.kind ?? "",
+        floatTitle: primary?.title ?? "",
+        floatValue: primary?.value !== undefined ? String(primary.value) : "",
+        floatChance: primary?.chance !== undefined ? String(primary.chance) : "",
+        floatScreens: screens,
+    };
+}
 import { cameraForHome, fadedUnitIds } from "../lib/boardFade";
 import { cueVisibility } from "../lib/reducedBoard";
 const Battlefield = lazy(() => import("../components/Battlefield"));
@@ -58,6 +106,40 @@ export default function Game() {
     const [game, setGame] = useState(props.game);
     const [busy, setBusy] = useState(false);
     const busyRef = useRef(false);
+    const [animLocked, setAnimLocked] = useState(false);
+    const [awaitingOpponent, setAwaitingOpponent] = useState(false);
+    const [reducedMotionOn, setReducedMotionOn] = useState(false);
+    const animLockedRef = useRef(false);
+    const [animHud, setAnimHud] = useState<AnimHud>({
+        turnBanner: "",
+        opponentPlaying: false,
+        floats: "",
+        deathBanners: "",
+        beat: "",
+        floatKind: "",
+        floatTitle: "",
+        floatValue: "",
+        floatChance: "",
+        floatScreens: [],
+    });
+    const floatScreensRef = useRef<FloatScreen[]>([]);
+    const queueRef = useRef<AnimationQueue | null>(null);
+    if (!queueRef.current) {
+        queueRef.current = createAnimationQueue({
+            viewerId: viewer.id,
+            playerName: (id) =>
+                props.game.state.players.find((player) => player.id === id)?.name ??
+                "Opponent",
+        });
+    }
+    if (typeof window !== "undefined") {
+        (
+            window as Window & { __wondrousQueue?: AnimationQueue }
+        ).__wondrousQueue = queueRef.current;
+    }
+    const seenVersion = useRef(props.game.version);
+    const prevUnits = useRef(props.game.state.units);
+    const gameIdRef = useRef(props.game.id);
     const [error, setError] = useState("");
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [draftChoice, setDraftChoice] = useState<string | null>(null);
@@ -110,7 +192,8 @@ export default function Game() {
         connection?.bind("disconnected", offline);
         connection?.bind("unavailable", offline);
 
-        const timer = setInterval(refresh, 3000);
+        const motion = new URLSearchParams(window.location.search).get("motion");
+        const timer = setInterval(refresh, motion === "slow" || motion === "reduce" ? 400 : 3000);
         window.addEventListener("focus", refresh);
         window.addEventListener("online", refresh);
         return () => {
@@ -131,8 +214,132 @@ export default function Game() {
     useEffect(() => {
         if (state.phase === "finished") router.reload({ only: ["auth"] });
     }, [state.phase]);
+    useEffect(() => {
+        const unsubscribe = queueRef.current?.onLock((locked) => {
+            animLockedRef.current = locked;
+            setAnimLocked(locked);
+        });
+        return () => {
+            unsubscribe?.();
+        };
+    }, []);
+    const applyHud = useCallback((view: QueueView) => {
+        const snap = snapshotHud(view, floatScreensRef.current);
+        if (snap.inputLocked !== animLockedRef.current) {
+            animLockedRef.current = snap.inputLocked;
+            setAnimLocked(snap.inputLocked);
+        }
+        setAnimHud((prev) => {
+            const next: AnimHud = {
+                turnBanner: snap.turnBanner,
+                opponentPlaying: snap.opponentPlaying,
+                floats: snap.floats,
+                deathBanners: snap.deathBanners,
+                beat: snap.beat,
+                floatKind: snap.floatKind,
+                floatTitle: snap.floatTitle,
+                floatValue: snap.floatValue,
+                floatChance: snap.floatChance,
+                floatScreens: floatScreensRef.current,
+            };
+            if (
+                prev.turnBanner === next.turnBanner &&
+                prev.opponentPlaying === next.opponentPlaying &&
+                prev.floats === next.floats &&
+                prev.deathBanners === next.deathBanners &&
+                prev.beat === next.beat &&
+                prev.floatKind === next.floatKind &&
+                prev.floatTitle === next.floatTitle &&
+                prev.floatValue === next.floatValue &&
+                prev.floatChance === next.floatChance &&
+                prev.floatScreens === next.floatScreens
+            ) {
+                return prev;
+            }
+            return next;
+        });
+    }, []);
+    useEffect(() => {
+        let frame = 0;
+        const tick = (now: number) => {
+            const queue = queueRef.current;
+            if (queue) applyHud(queue.advance(now));
+            frame = requestAnimationFrame(tick);
+        };
+        frame = requestAnimationFrame(tick);
+        return () => cancelAnimationFrame(frame);
+    }, [applyHud]);
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const motion = params.get("motion");
+        const forced = motion === "reduce" || params.has("reduced");
+        queueRef.current?.setTimeScale(motion === "slow" ? 12 : 1);
+        const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+        const apply = () => {
+            const on = forced || media.matches;
+            setReducedMotionOn(on);
+            queueRef.current?.setReducedMotion(on);
+        };
+        apply();
+        media.addEventListener("change", apply);
+        return () => media.removeEventListener("change", apply);
+    }, []);
+    useEffect(() => {
+        queueRef.current?.setPlayerName(
+            (id) => state.players.find((player) => player.id === id)?.name ?? "Opponent",
+        );
+    }, [state.players]);
+    useEffect(() => {
+        queueRef.current?.rememberUnits(state.units);
+    }, [state.units]);
+    useEffect(() => {
+        const queue = queueRef.current;
+        if (!queue) return;
+        if (game.id !== gameIdRef.current) {
+            gameIdRef.current = game.id;
+            seenVersion.current = game.version;
+            prevUnits.current = game.state.units;
+            setAwaitingOpponent(false);
+            return;
+        }
+        const previous = seenVersion.current;
+        if (game.version <= previous) {
+            prevUnits.current = game.state.units;
+            return;
+        }
+        const from = prevUnits.current;
+        seenVersion.current = game.version;
+        prevUnits.current = game.state.units;
+        const swap = detectConfirmedSwap(from, game.state.units);
+        queue.lock();
+        if (swap) queue.pushSwap(swap, { units: from });
+        void (async () => {
+            try {
+                let events = game.state.events ?? [];
+                if (game.version > previous + 1) {
+                    const response = await api.get(
+                        `/games/${game.code}/events?since=${previous}`,
+                    );
+                    events = response.data.events ?? [];
+                }
+                if (events.length) {
+                    queue.pushEvents(events, swap ? {} : { units: from });
+                    applyHud(queue.view());
+                } else if (!swap && !queue.view().busy) {
+                    queue.unlock();
+                    applyHud(queue.view());
+                }
+            } catch {
+                queue.unlock();
+                applyHud(queue.view());
+            } finally {
+                setAwaitingOpponent(false);
+            }
+        })();
+    }, [game, applyHud]);
     async function action(type: string, payload: Record<string, unknown> = {}) {
-        if (busyRef.current || syncing) return;
+        if (busyRef.current || syncing || animLockedRef.current || awaitingOpponent) return;
+        if (type === "end_turn") setAwaitingOpponent(true);
         busyRef.current = true;
         setBusy(true);
         setError("");
@@ -150,6 +357,7 @@ export default function Game() {
             }
         } catch (e) {
             setError(errorMessage(e));
+            if (type === "end_turn") setAwaitingOpponent(false);
             await refresh();
         } finally {
             setBusy(false);
@@ -162,6 +370,8 @@ export default function Game() {
         selected.hp > 0 &&
         myTurn &&
         !syncing &&
+        !animLocked &&
+        !awaitingOpponent &&
         (!state.active_unit_id || state.active_unit_id === selected.id) &&
         (selected.recovery === 0 || state.active_unit_id === selected.id) &&
         !selected.statuses.stun &&
@@ -172,7 +382,7 @@ export default function Game() {
         : undefined;
     const cues = cueVisibility(game.options?.cues);
     const highlights = useMemo(() => {
-        if (!selected) return [];
+        if (!selected || animLocked) return [];
         if (
             state.phase === "deployment" &&
             selected.owner_id === viewer.id &&
@@ -224,6 +434,7 @@ export default function Game() {
         mode,
         unitOptions,
         cues.skill_strip,
+        animLocked,
     ]);
     const hoveredMove: LegalMove | undefined = hover
         ? unitOptions?.moves.find((move) => move.x === hover.x && move.y === hover.y)
@@ -306,6 +517,7 @@ export default function Game() {
         if (!cues.skill_strip && mode === "skill") setMode("attack");
     }, [cues.skill_strip, mode]);
     function select(id: string | null) {
+        if (busy || animLocked || awaitingOpponent) return;
         setSelectedId(id);
         setMode("attack");
     }
@@ -313,7 +525,9 @@ export default function Game() {
         if (
             !selected ||
             !highlights.some((t) => t.x === x && t.y === y) ||
-            busy
+            busy ||
+            animLocked ||
+            awaitingOpponent
         )
             return;
         const kind = highlights.find((t) => t.x === x && t.y === y)?.kind;
@@ -356,6 +570,10 @@ export default function Game() {
             setBusy(false);
         }
     }
+    const opponentTurnText = `${opponent?.name ?? "Opponent"}'s turn`;
+    const liveTurnBanner =
+        animHud.turnBanner ||
+        (animHud.opponentPlaying || awaitingOpponent ? opponentTurnText : "");
     const phaseIndex = [
         "lobby",
         "draft",
@@ -748,9 +966,11 @@ export default function Game() {
                                     : "Arrange your starting formation"
                                 : state.phase === "finished"
                                   ? "Battle complete"
-                                  : myTurn
-                                    ? "Your turn"
-                                    : `${opponent?.name}'s turn`}
+                                  : liveTurnBanner
+                                    ? liveTurnBanner
+                                    : myTurn
+                                      ? "Your turn"
+                                      : opponentTurnText}
                             <small>
                                 {state.phase === "battle"
                                     ? `Turn ${state.turn_number} · Activate one champion`
@@ -758,6 +978,20 @@ export default function Game() {
                                       ? "Place champions in your two home rows"
                                       : "The Sunken Court"}
                             </small>
+                            {animHud.floatScreens[0] && (
+                                <strong
+                                    className={`last-result-chip ${animHud.floatKind}`}
+                                    data-last-result={`${animHud.floatKind}:${animHud.floatTitle}:${animHud.floatValue}:${animHud.floatChance}`}
+                                >
+                                    {animHud.floatValue && (
+                                        <b>{animHud.floatValue}</b>
+                                    )}
+                                    {animHud.floatTitle}
+                                    {animHud.floatChance && (
+                                        <em>{animHud.floatChance}%</em>
+                                    )}
+                                </strong>
+                            )}
                         </div>
                         <div>
                             {opponent?.name}
@@ -823,6 +1057,21 @@ export default function Game() {
                             data-faded={fadedIds.join(",")}
                             data-moved={state.moved ? "1" : "0"}
                             data-acted={state.acted ? "1" : "0"}
+                            data-anim-busy={animLocked ? "1" : "0"}
+                            data-turn-banner={liveTurnBanner}
+                            data-opponent-playing={
+                                animHud.opponentPlaying || awaitingOpponent
+                                    ? "1"
+                                    : "0"
+                            }
+                            data-awaiting-opponent={awaitingOpponent ? "1" : "0"}
+                            data-anim-beat={animHud.beat}
+                            data-floats={animHud.floats}
+                            data-board-floats={String(
+                                animHud.floatTitle ? 1 : 0,
+                            )}
+                            data-death-banners={animHud.deathBanners}
+                            data-reduced-motion={reducedMotionOn ? "1" : "0"}
                         >
                             <Suspense
                                 fallback={
@@ -908,7 +1157,30 @@ export default function Game() {
                                             : null
                                     }
                                     deployment={state.phase === "deployment"}
-                                    interactive={!busy}
+                                    interactive={
+                                        !busy && !animLocked && !awaitingOpponent
+                                    }
+                                    animation={queueRef.current}
+                                    onHud={(hud) => {
+                                        floatScreensRef.current = hud.floatScreens;
+                                        if (hud.inputLocked !== animLockedRef.current) {
+                                            animLockedRef.current = hud.inputLocked;
+                                            setAnimLocked(hud.inputLocked);
+                                        }
+                                        setAnimHud((prev) => ({
+                                            ...prev,
+                                            turnBanner: hud.turnBanner,
+                                            opponentPlaying: hud.opponentPlaying,
+                                            floats: hud.floats,
+                                            deathBanners: hud.deathBanners,
+                                            beat: hud.beat,
+                                            floatKind: hud.floatKind,
+                                            floatTitle: hud.floatTitle,
+                                            floatValue: hud.floatValue,
+                                            floatChance: hud.floatChance,
+                                            floatScreens: hud.floatScreens,
+                                        }));
+                                    }}
                                 />
                             </Suspense>
                             <div className="canvas-instructions">
@@ -918,6 +1190,23 @@ export default function Game() {
                             {busy && (
                                 <div className="board-busy">
                                     <ArrowPathIcon /> Resolving…
+                                </div>
+                            )}
+                            {liveTurnBanner && (
+                                <div
+                                    className="turn-banner-overlay"
+                                    data-turn-banner-overlay={liveTurnBanner}
+                                >
+                                    {liveTurnBanner}
+                                </div>
+                            )}
+                            {animHud.deathBanners && (
+                                <div
+                                    className="death-banner-overlay"
+                                    data-death-banner-overlay={animHud.deathBanners}
+                                >
+                                    <i />
+                                    <span>Fallen banner remains</span>
                                 </div>
                             )}
                         </div>
@@ -1046,10 +1335,7 @@ export default function Game() {
                                         key={u.id}
                                         className={`${selectedId === u.id ? "selected" : ""} ${u.hp <= 0 ? "fallen" : ""}`}
                                         title={`${catalog[u.character_id].name} · ${u.hp} HP · recovery ${u.recovery}`}
-                                        onClick={() => {
-                                            setSelectedId(u.id);
-                                            setMode("attack");
-                                        }}
+                                        onClick={() => select(u.id)}
                                     >
                                         <Portrait id={u.character_id} />
                                         <div>
@@ -1086,7 +1372,12 @@ export default function Game() {
                                 <button
                                     type="button"
                                     className="button primary"
-                                    disabled={!myTurn || busy}
+                                    disabled={
+                                        !myTurn ||
+                                        busy ||
+                                        animLocked ||
+                                        awaitingOpponent
+                                    }
                                     onClick={() => action("end_turn")}
                                 >
                                     End turn

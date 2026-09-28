@@ -420,6 +420,174 @@ export function SwapCue({
     );
 }
 
+export function FloatingResultCard({
+    kind,
+    title,
+    value,
+    chance,
+    rise,
+    opacity,
+}: {
+    kind: "hit" | "block" | "miss" | "heal";
+    title: string;
+    value?: number;
+    chance?: number;
+    rise: number;
+    opacity: number;
+}) {
+    const worldRise = rise / 80;
+    return (
+        <Html
+            position={[0, 1.55 + worldRise, 0]}
+            center
+            transform={false}
+            occlude={false}
+            zIndexRange={[200, 0]}
+            style={{
+                pointerEvents: "none",
+                opacity,
+                zIndex: 20,
+                fontSize: 16,
+            }}
+        >
+            <div
+                className={`board-float ${kind}`}
+                data-float-overlay={`${kind}:${title}:${value ?? ""}:${chance ?? ""}`}
+            >
+                {value !== undefined && <strong>{value}</strong>}
+                <span>{title}</span>
+                {chance !== undefined && <small>{chance}%</small>}
+            </div>
+        </Html>
+    );
+}
+
+export function DeathBannerMarker({
+    friendly,
+}: {
+    friendly: boolean;
+}) {
+    const color = friendly ? teal : teamRed;
+    return (
+        <group>
+            <mesh position={[0, 0.42, 0]}>
+                <boxGeometry args={[0.05, 0.72, 0.05]} />
+                <meshBasicMaterial color="#d8c9a1" />
+            </mesh>
+            <mesh position={[0.22, 0.62, 0]}>
+                <boxGeometry args={[0.38, 0.24, 0.03]} />
+                <meshBasicMaterial color={color} />
+            </mesh>
+            <Html
+                position={[0.12, 1.05, 0]}
+                center
+                style={{ pointerEvents: "none" }}
+            >
+                <div className={`death-flag-label ${friendly ? "teal" : "red"}`}>
+                    Fallen
+                </div>
+            </Html>
+        </group>
+    );
+}
+
+export function MotionEffectMesh({
+    kind,
+    color,
+    from,
+    to,
+    progress,
+}: {
+    kind: "streak" | "ring" | "rise" | "glow" | "projectile" | "shield";
+    color: string;
+    from: [number, number];
+    to: [number, number];
+    progress: number;
+}) {
+    const start = tilePos(from[0], from[1], 0.7);
+    const end = tilePos(to[0], to[1], 0.7);
+    const x = start[0] + (end[0] - start[0]) * progress;
+    const z = start[2] + (end[2] - start[2]) * progress;
+    if (kind === "streak") {
+        const dx = end[0] - start[0];
+        const dz = end[2] - start[2];
+        const length = Math.hypot(dx, dz) || 0.4;
+        return (
+            <group
+                position={[
+                    start[0] + dx * progress,
+                    0.7,
+                    start[2] + dz * progress,
+                ]}
+                rotation={[0, Math.atan2(dx, dz), 0]}
+            >
+                <mesh>
+                    <boxGeometry args={[0.06, 0.06, Math.max(0.35, length * 0.35)]} />
+                    <meshBasicMaterial color={color} />
+                </mesh>
+            </group>
+        );
+    }
+    if (kind === "ring" || kind === "shield") {
+        const scale = 0.4 + progress * 0.7;
+        return (
+            <mesh
+                rotation={[-Math.PI / 2, 0, 0]}
+                position={tilePos(to[0], to[1], 0.2)}
+                scale={scale}
+            >
+                <ringGeometry args={[0.22, 0.34, 28]} />
+                <meshBasicMaterial
+                    color={color}
+                    transparent
+                    opacity={1 - progress * 0.65}
+                />
+            </mesh>
+        );
+    }
+    if (kind === "rise") {
+        return (
+            <group position={tilePos(to[0], to[1], 0.2 + progress * 0.7)}>
+                {[0, 1, 2].map((i) => (
+                    <mesh
+                        key={i}
+                        position={[
+                            Math.sin(i * 2.1) * 0.12,
+                            i * 0.08,
+                            Math.cos(i * 2.1) * 0.12,
+                        ]}
+                    >
+                        <octahedronGeometry args={[0.07, 0]} />
+                        <meshBasicMaterial
+                            color={color}
+                            transparent
+                            opacity={1 - progress * 0.4}
+                        />
+                    </mesh>
+                ))}
+            </group>
+        );
+    }
+    if (kind === "projectile") {
+        return (
+            <mesh position={[x, 0.75, z]}>
+                <sphereGeometry args={[0.07, 10, 10]} />
+                <meshBasicMaterial color={color} />
+            </mesh>
+        );
+    }
+    return (
+        <mesh position={tilePos(to[0], to[1], 0.55)}>
+            <sphereGeometry args={[0.18 + progress * 0.12, 12, 12]} />
+            <meshBasicMaterial
+                color={color}
+                transparent
+                opacity={0.7 - progress * 0.4}
+            />
+        </mesh>
+    );
+}
+
 export function MoonBadge({ turns }: { turns: number }) {
     return (
         <Html position={[0.36, 1.42, 0]} center style={{ pointerEvents: "none" }}>

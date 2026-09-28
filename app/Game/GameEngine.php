@@ -231,7 +231,7 @@ final class GameEngine
                     }
                 } break;
             default:
-                $dealt = $this->damage($s, $i, $j, $amount, in_array($id, ['ranger', 'arcanist', 'rogue', 'revenant'], true), false);
+                $dealt = $this->damage($s, $i, $j, $amount, $this->skillPierces($id), false);
                 $targetIds[] = $s['units'][$j]['id'];
                 $amounts[$s['units'][$j]['id']] = $dealt;
                 if ($dealt > 0 && $s['units'][$j]['hp'] > 0) {

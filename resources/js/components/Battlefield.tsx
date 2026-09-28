@@ -1,20 +1,24 @@
-import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
+import { createContext, Suspense, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from "react";
 import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { Billboard, OrbitControls } from "@react-three/drei";
 import { collectBoardHits, resolveBoardClick, resolveBoardHover } from "../lib/boardClick";
 import type { AimChip } from "../lib/aimChip";
+import { htmlBoardFloats, type AnimationQueue, type QueueView } from "../lib/animationQueue";
 import {
     ActionStrip,
     AimChipCard,
     AimLine,
     Crosshair,
     DashedRing,
+    DeathBannerMarker,
     DottedTrail,
     FadeGroup,
     FacingControls,
+    FloatingResultCard,
     GhostMarker,
     GoldRing,
     MoonBadge,
+    MotionEffectMesh,
     SplitFacingRing,
     SwapCue,
     ember,
@@ -92,7 +96,46 @@ type Props = {
     deployment?: boolean;
     interactive?: boolean;
     homeSide?: "north" | "south";
+    animation?: AnimationQueue | null;
+    onHud?: (hud: {
+        inputLocked: boolean;
+        turnBanner: string;
+        opponentPlaying: boolean;
+        floats: string;
+        deathBanners: string;
+        beat: string;
+        floatKind: string;
+        floatTitle: string;
+        floatValue: string;
+        floatChance: string;
+        floatScreens: {
+            id: string;
+            kind: string;
+            title: string;
+            value?: number;
+            chance?: number;
+            left: number;
+            top: number;
+            opacity: number;
+            tileX: number;
+            tileY: number;
+        }[];
+    }) => void;
 };
+
+const emptyView = (): QueueView => ({
+    busy: false,
+    inputLocked: false,
+    currentType: null,
+    turnBanner: null,
+    opponentPlaying: false,
+    deathBanners: [],
+    floats: [],
+    poses: {},
+    effects: [],
+});
+
+const MotionRefContext = createContext<MutableRefObject<QueueView> | null>(null);
 
 function NonInteractive({ children }: { children: ReactNode }) {
     const visuals = useRef<Group>(null);
@@ -166,8 +209,20 @@ function Pawn({
         0,
     ]);
     const target = new Vector3(unit.x - 3.5, 0.13, unit.y - 3.5);
+    const motionRef = useContext(MotionRefContext);
     useFrame((_, dt) => {
-        group.current?.position.lerp(target, 1 - Math.exp(-12 * dt));
+        const pose = motionRef?.current.poses[unit.id];
+        if (group.current && pose) {
+            group.current.position.set(
+                pose.x - 3.5 + pose.lungeX,
+                0.13 + pose.lift - pose.sink * 0.45,
+                pose.y - 3.5 + pose.lungeZ + pose.sidestep,
+            );
+            group.current.rotation.z = pose.tip * 1.05;
+        } else {
+            group.current?.position.lerp(target, 1 - Math.exp(-12 * dt));
+            if (group.current) group.current.rotation.z = 0;
+        }
         if (facing.current) {
             const delta = Math.atan2(
                 Math.sin(direction - facing.current.rotation.y),
@@ -182,9 +237,12 @@ function Pawn({
                 : 1;
         }
     });
+    const pose = motionRef?.current.poses[unit.id];
+    const dying = Boolean(pose?.defeated && !pose.hideMiniature);
+    const showMiniature = unit.hp > 0 || dying;
     return (
         <group ref={group} position={initialPosition.current}>
-            {unit.hp > 0 && (
+            {showMiniature && (
                 <mesh
                     userData={{
                         boardKind: "pawn",
@@ -217,7 +275,7 @@ function Pawn({
                 <FadeGroup
                     opacity={faded ? 0.35 : (unit.recovery ?? 0) > 0 ? 0.6 : 1}
                 >
-                    {selected && unit.hp > 0 && (unit.recovery ?? 0) === 0 && (
+                    {selected && showMiniature && (unit.recovery ?? 0) === 0 && (
                         <>
                             <GoldRing radius={0.38} width={0.08} y={0.055} />
                             <GoldRing
@@ -228,13 +286,13 @@ function Pawn({
                             />
                         </>
                     )}
-                    {(unit.recovery ?? 0) > 0 && unit.hp > 0 && (
+                    {(unit.recovery ?? 0) > 0 && showMiniature && (
                         <DashedRing radius={0.37} y={0.02} />
                     )}
-                    {aimHere?.showFacingRing && unit.hp > 0 ? (
+                    {aimHere?.showFacingRing && showMiniature ? (
                         <SplitFacingRing facing={unit.facing ?? "south"} />
                     ) : (
-                        unit.hp > 0 &&
+                        showMiniature &&
                         (unit.recovery ?? 0) === 0 &&
                         !selected && (
                             <mesh
@@ -256,7 +314,7 @@ function Pawn({
                     <group
                         ref={facing}
                         rotation={initialDirection.current}
-                        visible={unit.hp > 0}
+                        visible={showMiniature}
                     >
                         <Miniature
                             id={unit.character_id}
@@ -278,8 +336,8 @@ function Pawn({
                             />
                         </mesh>
                     </group>
-                    <CombatEffect hp={unit.hp} mana={unit.mana} />
-                    <Billboard visible={unit.hp > 0} position={[0, 1.37, 0]}>
+                    {!motionRef && <CombatEffect hp={unit.hp} mana={unit.mana} />}
+                    <Billboard visible={showMiniature} position={[0, 1.37, 0]}>
                         <mesh>
                             <planeGeometry args={[0.55, 0.067]} />
                             <meshBasicMaterial
@@ -316,10 +374,10 @@ function Pawn({
                             />
                         </mesh>
                     </Billboard>
-                    {(unit.recovery ?? 0) > 0 && unit.hp > 0 && (
+                    {(unit.recovery ?? 0) > 0 && showMiniature && (
                         <MoonBadge turns={unit.recovery ?? 0} />
                     )}
-                    {faded && unit.hp > 0 && (
+                    {faded && showMiniature && (
                         <GoldRing
                             radius={0.33}
                             width={0.02}
@@ -779,6 +837,113 @@ function Landscape() {
         </group>
     );
 }
+function MotionDriver({
+    animation,
+    viewRef,
+    onHud,
+    viewerId,
+}: {
+    animation?: AnimationQueue | null;
+    viewRef: MutableRefObject<QueueView>;
+    onHud?: Props["onHud"];
+    viewerId: number;
+}) {
+    const [view, setView] = useState(viewRef.current);
+    const hudKey = useRef("");
+    const { camera, size } = useThree();
+    const projected = new Vector3();
+    useFrame(() => {
+        const next = animation ? animation.advance(performance.now()) : emptyView();
+        viewRef.current = next;
+        if (
+            next.busy ||
+            next.floats.length ||
+            next.deathBanners.length ||
+            next.turnBanner ||
+            next.effects.length
+        ) {
+            setView(next);
+        } else if (
+            view.busy ||
+            view.floats.length ||
+            view.deathBanners.length ||
+            view.turnBanner
+        ) {
+            setView(next);
+        }
+        camera.updateMatrixWorld();
+        const floatScreens = next.floats.map((item) => {
+            const [wx, wy, wz] = tilePos(item.x, item.y, 1.55 + item.rise / 80);
+            projected.set(wx, wy, wz).project(camera);
+            return {
+                id: item.id,
+                kind: item.kind,
+                title: item.title,
+                value: item.value,
+                chance: item.chance,
+                left: (projected.x * 0.5 + 0.5) * 100,
+                top: (-projected.y * 0.5 + 0.5) * 100,
+                opacity: item.opacity,
+                tileX: item.x,
+                tileY: item.y,
+            };
+        });
+        const key = [
+            next.inputLocked ? "1" : "0",
+            next.turnBanner?.text ?? "",
+            next.opponentPlaying ? "1" : "0",
+            next.currentType ?? "",
+            next.floats.map((item) => `${item.kind}:${item.value ?? item.chance ?? ""}`).join(","),
+            next.deathBanners.map((item) => item.unitId).join(","),
+            floatScreens.map((item) => `${item.left.toFixed(1)},${item.top.toFixed(1)}`).join(";"),
+        ].join("|");
+        if (key !== hudKey.current) {
+            hudKey.current = key;
+            const primary = next.floats[0];
+            onHud?.({
+                inputLocked: next.inputLocked,
+                turnBanner: next.turnBanner?.text ?? "",
+                opponentPlaying: next.opponentPlaying,
+                floats: next.floats
+                    .map((item) => `${item.kind}:${item.value ?? item.chance ?? ""}`)
+                    .join(","),
+                deathBanners: next.deathBanners.map((item) => item.unitId).join(","),
+                beat: next.currentType ?? "",
+                floatKind: primary?.kind ?? "",
+                floatTitle: primary?.title ?? "",
+                floatValue: primary?.value !== undefined ? String(primary.value) : "",
+                floatChance:
+                    primary?.chance !== undefined ? String(primary.chance) : "",
+                floatScreens,
+            });
+        }
+    });
+    return (
+        <>
+            {view.effects.map((effect) => (
+                <MotionEffectMesh key={effect.id} {...effect} />
+            ))}
+            {htmlBoardFloats(view.floats).map((item) => (
+                <group key={item.id} position={tilePos(item.x, item.y, 0)}>
+                    <FloatingResultCard
+                        kind={item.kind}
+                        title={item.title}
+                        value={item.value}
+                        chance={item.chance}
+                        rise={item.rise}
+                        opacity={item.opacity}
+                    />
+                </group>
+            ))}
+            {view.deathBanners.map((banner) => (
+                <group key={banner.unitId} position={tilePos(banner.x, banner.y, 0.12)}>
+                    <DeathBannerMarker friendly={banner.ownerId === viewerId} />
+                </group>
+            ))}
+        </>
+    );
+}
+
 function Scene({
     units,
     viewerId,
@@ -798,6 +963,8 @@ function Scene({
     deployment = false,
     interactive = true,
     homeSide = "south",
+    animation = null,
+    onHud,
 }: Props) {
     const onBoardPointer = (e: ThreeEvent<MouseEvent>) => {
         e.stopPropagation();
@@ -818,13 +985,14 @@ function Scene({
         if (!interactive) return;
         onHover?.(resolveBoardHover(collectBoardHits(e.intersections), highlights));
     };
+    const viewRef = useRef<QueueView>(emptyView());
     const cueColor = aim?.skillTint === "green"
         ? healGreen
         : aim?.skillTint === "violet"
           ? violet
           : gold;
     return (
-        <>
+        <MotionRefContext.Provider value={viewRef}>
             <color attach="background" args={["#9cbfc9"]} />
             <fog attach="fog" args={["#d7c9a9", 22, 48]} />
             <ambientLight intensity={0.95} />
@@ -1003,6 +1171,12 @@ function Scene({
                 <AimLine from={aim.from} to={aim.to} color={cueColor} />
             )}
             {swapHover && <SwapCue a={swapHover.a} b={swapHover.b} />}
+            <MotionDriver
+                animation={animation}
+                viewRef={viewRef}
+                onHud={onHud}
+                viewerId={viewerId}
+            />
             {units.map((unit) => (
                 <Pawn
                     key={unit.id}
@@ -1027,7 +1201,7 @@ function Scene({
                     }
                 />
             ))}
-        </>
+        </MotionRefContext.Provider>
     );
 }
 export default function Battlefield(props: Props) {
@@ -1041,6 +1215,7 @@ export default function Battlefield(props: Props) {
             }}
             aria-label="Three dimensional tactical battlefield"
             onPointerLeave={() => props.onHover?.(null)}
+            data-anim-busy={props.interactive === false ? "1" : undefined}
         >
             <Canvas
                 shadows={{ type: PCFShadowMap }}
