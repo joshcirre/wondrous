@@ -3837,31 +3837,11 @@ label {
     background: transparent !important;
     border: none !important;
     box-shadow: none !important;
+    pointer-events: none !important;
 }
-.status-badge-hit {
+.status-badge-label {
     display: block;
-    width: 4.2rem;
-    height: 2.5rem;
-    padding: 0;
-    border: 0;
-    background: transparent;
-    cursor: default;
-    position: relative;
-}
-.status-badge-hit:focus-visible,
-.spent-reason:focus-visible {
-    outline: 1px solid #edce91;
-    outline-offset: 2px;
-}
-.status-badge-hit:hover::after,
-.status-badge-hit:focus-visible::after,
-.spent-reason:hover::after,
-.spent-reason:focus-visible::after {
-    content: attr(data-label);
-    position: absolute;
-    left: 50%;
-    bottom: calc(100% + 6px);
-    transform: translateX(-50%);
+    pointer-events: none;
     white-space: nowrap;
     padding: 3px 7px;
     border-radius: 4px;
@@ -3869,15 +3849,7 @@ label {
     color: #ece6d4;
     font-size: 0.62rem;
     letter-spacing: 0.01em;
-    z-index: 5;
-    pointer-events: none;
-}
-.spent-reason {
-    display: block;
-    width: 18px;
-    height: 18px;
-    border-radius: 999px;
-    position: relative;
+    transform: translateY(-1.15rem);
 }
 .facing-no-block {
     font-size: 0.58rem;

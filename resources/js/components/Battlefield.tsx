@@ -185,6 +185,7 @@ function Pawn({
     aimHere,
     option,
     statusFacts,
+    hovered = false,
 }: {
     unit: Unit;
     selected: boolean;
@@ -205,6 +206,7 @@ function Pawn({
         spent_reason?: string | null;
     } | null;
     statusFacts?: Record<string, StatusFact>;
+    hovered?: boolean;
 }) {
     const group = useRef<Group>(null);
     const facing = useRef<Group>(null);
@@ -421,23 +423,8 @@ function Pawn({
                         />
                     </group>
                 )}
-                {badges.length > 0 && <StatusBadgeRow badges={badges} />}
-                {spent.reason && living && (
-                    <Html
-                        position={[0, 0.28, 0]}
-                        center
-                        style={{
-                            pointerEvents: "auto",
-                            background: "transparent",
-                        }}
-                    >
-                        <span
-                            className="spent-reason"
-                            aria-label={spent.reason}
-                            tabIndex={0}
-                            data-label={spent.reason}
-                        />
-                    </Html>
+                {badges.length > 0 && (
+                    <StatusBadgeRow badges={badges} showLabel={hovered} />
                 )}
                 {selected && actionStrip && (
                     <ActionStrip {...actionStrip} />
@@ -1255,6 +1242,9 @@ function Scene({
                     }
                     option={options?.units[unit.id] ?? null}
                     statusFacts={statusFacts}
+                    hovered={Boolean(
+                        hover && hover.x === unit.x && hover.y === unit.y,
+                    )}
                 />
             ))}
         </MotionRefContext.Provider>

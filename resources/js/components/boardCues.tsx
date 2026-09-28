@@ -2,7 +2,13 @@ import { useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from "rea
 import { Billboard, Html, Line } from "@react-three/drei";
 import { CanvasTexture, Color, Group, Mesh, SRGBColorSpace } from "three";
 import type { AimChip } from "../lib/aimChip";
-import { type StatusBadge } from "../lib/statusCues";
+import {
+    BADGE_ROW_Y,
+    STATUS_OVERLAY_POINTER_EVENTS,
+    badgeChipSize,
+    badgeWorldX,
+    type StatusBadge,
+} from "../lib/statusCues";
 
 export const gold = "#edce91";
 export const goldDeep = "#d5b676";
@@ -94,18 +100,30 @@ export function DashedRing({
 }) {
     return (
         <group userData={{ cueOpaque: true }}>
-            {Array.from({ length: 14 }, (_, i) => (
+            <mesh
+                rotation={[-Math.PI / 2, 0, 0]}
+                position={[0, y, 0]}
+                renderOrder={3}
+            >
+                <ringGeometry args={[radius - 0.02, radius + 0.015, 32]} />
+                <meshBasicMaterial
+                    color="#5a5e56"
+                    depthTest={false}
+                    depthWrite={false}
+                />
+            </mesh>
+            {Array.from({ length: 12 }, (_, i) => (
                 <mesh
                     key={i}
-                    rotation={[-Math.PI / 2, 0, (i * Math.PI) / 7]}
-                    position={[0, y, 0]}
+                    rotation={[-Math.PI / 2, 0, (i * Math.PI) / 6]}
+                    position={[0, y + 0.006, 0]}
                     renderOrder={4}
                 >
                     <ringGeometry
-                        args={[radius, radius + 0.1, 12, 1, 0, Math.PI / 16]}
+                        args={[radius, radius + 0.12, 12, 1, 0, Math.PI / 16]}
                     />
                     <meshBasicMaterial
-                        color={spentGrey}
+                        color="#3f433c"
                         depthTest={false}
                         depthWrite={false}
                     />
@@ -138,8 +156,8 @@ export function FacingArrow({
 }
 
 export function dimSpentColor(hex: string): string {
-    const color = new Color(hex).lerp(new Color(spentGrey), 0.4);
-    color.multiplyScalar(0.6);
+    const color = new Color(hex).lerp(new Color("#4a4e48"), 0.82);
+    color.multiplyScalar(0.48);
     return `#${color.getHexString()}`;
 }
 
@@ -695,23 +713,26 @@ function StatusBadgeChip({
     badge,
     index,
     count,
+    showLabel = false,
 }: {
     badge: StatusBadge;
     index: number;
     count: number;
+    showLabel?: boolean;
 }) {
     const texture = useMemo(
         () => makeBadgeTexture(badge),
         [badge.color, badge.glyph, badge.id, badge.text],
     );
     useEffect(() => () => texture.dispose(), [texture]);
+    const { width, height } = badgeChipSize(count);
     return (
         <Billboard
-            position={[(index - (count - 1) / 2) * 1.12, 2.28, 0]}
+            position={[badgeWorldX(index, count), BADGE_ROW_Y, 0]}
             userData={{ cueOpaque: true }}
         >
             <mesh renderOrder={8} userData={{ cueOpaque: true }}>
-                <planeGeometry args={[1.05, 0.62]} />
+                <planeGeometry args={[width, height]} />
                 <meshBasicMaterial
                     map={texture}
                     transparent
@@ -720,29 +741,26 @@ function StatusBadgeChip({
                     toneMapped={false}
                 />
             </mesh>
-            <Html
-                center
-                occlude={false}
-                zIndexRange={[180, 0]}
-                style={{
-                    background: "transparent",
-                    border: "none",
-                    padding: 0,
-                    width: 0,
-                    height: 0,
-                    overflow: "visible",
-                }}
-                wrapperClass="status-badge-html"
-            >
-                <button
-                    type="button"
-                    className="status-badge-hit"
-                    aria-label={badge.label}
-                    data-label={badge.label}
-                    data-status={badge.id}
-                    data-badge-index={index}
-                />
-            </Html>
+            {showLabel && (
+                <Html
+                    center
+                    occlude={false}
+                    zIndexRange={[180, 0]}
+                    pointerEvents={STATUS_OVERLAY_POINTER_EVENTS}
+                    style={{
+                        pointerEvents: STATUS_OVERLAY_POINTER_EVENTS,
+                        background: "transparent",
+                    }}
+                    wrapperClass="status-badge-html"
+                >
+                    <span
+                        className="status-badge-label"
+                        data-status={badge.id}
+                    >
+                        {badge.label}
+                    </span>
+                </Html>
+            )}
         </Billboard>
     );
 }
@@ -766,7 +784,13 @@ export function MoonBadge({ turns }: { turns: number }) {
     );
 }
 
-export function StatusBadgeRow({ badges }: { badges: StatusBadge[] }) {
+export function StatusBadgeRow({
+    badges,
+    showLabel = false,
+}: {
+    badges: StatusBadge[];
+    showLabel?: boolean;
+}) {
     if (!badges.length) return null;
     return (
         <group userData={{ cueOpaque: true }}>
@@ -776,6 +800,7 @@ export function StatusBadgeRow({ badges }: { badges: StatusBadge[] }) {
                     badge={badge}
                     index={index}
                     count={badges.length}
+                    showLabel={showLabel}
                 />
             ))}
         </group>

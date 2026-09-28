@@ -1,5 +1,35 @@
 export const BADGE_SLOT_PX = 32;
 export const BADGE_GAP_PX = 4;
+export const BADGE_CHIP_GAP = 0.03;
+export const BADGE_CHIP_MAX_W = 0.32;
+export const BADGE_ROW_MAX_W = 1;
+export const BADGE_ROW_Y = 1.58;
+export const STATUS_OVERLAY_POINTER_EVENTS = "none" as const;
+
+export function badgeChipSize(count: number): { width: number; height: number } {
+    if (count <= 0) {
+        return { width: 0, height: 0 };
+    }
+    const width = Math.min(
+        BADGE_CHIP_MAX_W,
+        (BADGE_ROW_MAX_W - (count - 1) * BADGE_CHIP_GAP) / count,
+    );
+    return { width, height: width * 0.62 };
+}
+
+export function badgeRowWorldWidth(count: number): number {
+    if (count <= 0) {
+        return 0;
+    }
+    const { width } = badgeChipSize(count);
+    return count * width + (count - 1) * BADGE_CHIP_GAP;
+}
+
+export function badgeWorldX(index: number, count: number): number {
+    const { width } = badgeChipSize(count);
+    const row = badgeRowWorldWidth(count);
+    return -row / 2 + width / 2 + index * (width + BADGE_CHIP_GAP);
+}
 
 export const STATUS_STYLE: Record<string, { glyph: string; color: string }> = {
     rest: { glyph: "☾", color: "#7d8479" },

@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
     BADGE_GAP_PX,
+    BADGE_ROW_MAX_W,
     BADGE_SLOT_PX,
+    STATUS_OVERLAY_POINTER_EVENTS,
+    badgeRowWorldWidth,
+    badgeWorldX,
     spentFromServer,
     statusBadgeRow,
 } from "../../resources/js/lib/statusCues.ts";
@@ -114,6 +118,35 @@ describe("statusBadgeRow", () => {
             }
         });
     }
+
+    for (const count of [1, 2, 3, 4]) {
+        it(`keeps a ${count}-badge row within about one tile`, () => {
+            const keys = ["stun", "root", "burn", "ward"] as const;
+            const statuses = Object.fromEntries(
+                keys.slice(0, Math.max(0, count - 1)).map((key, i) => [key, i + 1]),
+            );
+            const row = statusBadgeRow({
+                recovery: 1,
+                statuses,
+                facts,
+            });
+            assert.equal(row.length, count);
+            const width = badgeRowWorldWidth(count);
+            assert.ok(
+                width <= BADGE_ROW_MAX_W + 1e-6,
+                `row width ${width} exceeds one tile (${BADGE_ROW_MAX_W})`,
+            );
+            const xs = row.map((_, index) => badgeWorldX(index, count));
+            for (let i = 1; i < xs.length; i++) {
+                assert.ok(xs[i] > xs[i - 1], "chips should stay in order");
+            }
+            assert.ok(Math.abs((xs[0] + xs[xs.length - 1]) / 2) < 1e-6);
+        });
+    }
+
+    it("never lets status overlays take a board pointer", () => {
+        assert.equal(STATUS_OVERLAY_POINTER_EVENTS, "none");
+    });
 });
 
 describe("spentFromServer", () => {
