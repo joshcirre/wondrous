@@ -1,9 +1,9 @@
 export const BADGE_SLOT_PX = 32;
 export const BADGE_GAP_PX = 4;
-export const BADGE_CHIP_GAP = 0.03;
-export const BADGE_CHIP_MAX_W = 0.32;
+export const BADGE_CHIP_GAP = 0.025;
+export const BADGE_CHIP_MAX_W = 0.42;
 export const BADGE_ROW_MAX_W = 1;
-export const BADGE_ROW_Y = 1.58;
+export const BADGE_ROW_Y = 1.6;
 export const STATUS_OVERLAY_POINTER_EVENTS = "none" as const;
 
 export function badgeChipSize(count: number): { width: number; height: number } {
@@ -14,7 +14,7 @@ export function badgeChipSize(count: number): { width: number; height: number } 
         BADGE_CHIP_MAX_W,
         (BADGE_ROW_MAX_W - (count - 1) * BADGE_CHIP_GAP) / count,
     );
-    return { width, height: width * 0.62 };
+    return { width, height: width * 0.68 };
 }
 
 export function badgeRowWorldWidth(count: number): number {
