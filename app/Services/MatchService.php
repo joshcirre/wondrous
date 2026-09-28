@@ -5,10 +5,12 @@ namespace App\Services;
 use App\Events\GameUpdated;
 use App\Events\LobbyUpdated;
 use App\Events\MatchAdvanced;
+use App\Game\BoardCues;
 use App\Game\CharacterCatalog;
 use App\Game\ComputerOpponent;
 use App\Game\GameEngine;
 use App\Game\LessonCatalog;
+use App\Game\MatchCredit;
 use App\Game\Progression;
 use App\Game\Scenarios\FirstMatch;
 use App\Models\Game;
@@ -96,6 +98,9 @@ class MatchService
                 return [$game, true];
             }
             abort_unless($game->version === $version, 409, 'The board changed. Your view has been refreshed; choose your action again.');
+            if ($type === 'skill' && ($game->state['scenario'] ?? null) === FirstMatch::KEY && $game->reduced_board) {
+                abort_unless(BoardCues::forViewer(true, $game->state, $user->id)['skill_strip'], 422, 'Skills unlock on your fourth turn.');
+            }
             if ($type === 'join') {
                 abort_if($game->mode === 'practice', 403, 'Practice games are private.');
                 if ($game->time_control === 'live') {
@@ -335,7 +340,7 @@ class MatchService
             $won = $p->id === $winner->id;
             $change = $won ? $delta : -$delta;
             // Short forfeits settle rating, but cannot be farmed for currency.
-            $coins = $state['turn_number'] >= 9 ? ($won ? 100 : 30) : 0;
+            $coins = MatchCredit::qualifies($state) ? ($won ? 100 : 30) : 0;
             $p->rating += $change;
             $p->currency += $coins;
             $p->{$won ? 'wins' : 'losses'}++;

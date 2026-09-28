@@ -24,6 +24,8 @@ import {
     ClockIcon,
 } from "@heroicons/react/16/solid";
 import { Eyebrow, ErrorBanner } from "../components/Shell";
+import { LessonCard } from "../components/LessonCard";
+import { lessonKey } from "../lib/statusCues";
 import CharacterCard, { Portrait } from "../components/CharacterCard";
 import { api, errorMessage, realtime } from "../api";
 import type {
@@ -986,20 +988,27 @@ export default function Game() {
                                       ? "Place champions in your two home rows"
                                       : "The Sunken Court"}
                             </small>
-                            {animHud.floatScreens[0] && (
-                                <strong
-                                    className={`last-result-chip ${animHud.floatKind}`}
-                                    data-last-result={`${animHud.floatKind}:${animHud.floatTitle}:${animHud.floatValue}:${animHud.floatChance}`}
-                                >
-                                    {animHud.floatValue && (
-                                        <b>{animHud.floatValue}</b>
-                                    )}
-                                    {animHud.floatTitle}
-                                    {animHud.floatChance && (
-                                        <em>{animHud.floatChance}%</em>
-                                    )}
-                                </strong>
-                            )}
+                            <div
+                                className="sr-only"
+                                aria-live="polite"
+                                data-last-result={
+                                    animHud.floatScreens[0]
+                                        ? `${animHud.floatKind}:${animHud.floatTitle}:${animHud.floatValue}:${animHud.floatChance}`
+                                        : ""
+                                }
+                            >
+                                {animHud.floatScreens[0]
+                                    ? [
+                                          animHud.floatValue,
+                                          animHud.floatTitle,
+                                          animHud.floatChance
+                                              ? `${animHud.floatChance}%`
+                                              : null,
+                                      ]
+                                          .filter(Boolean)
+                                          .join(" ")
+                                    : ""}
+                            </div>
                         </div>
                         <div>
                             {opponent?.name}
@@ -1202,34 +1211,6 @@ export default function Game() {
                                     <ArrowPathIcon /> Resolving…
                                 </div>
                             )}
-                            {game.lesson &&
-                                dismissedLesson !==
-                                    `${game.lesson.step}:${game.lesson.variant ?? ""}` && (
-                                    <aside
-                                        className="lesson-card unit-panel"
-                                        data-lesson-step={game.lesson.step}
-                                        data-lesson-variant={
-                                            game.lesson.variant ?? ""
-                                        }
-                                    >
-                                        <Eyebrow>
-                                            Lesson {game.lesson.step}
-                                        </Eyebrow>
-                                        <h3>{game.lesson.title}</h3>
-                                        <p>{game.lesson.body}</p>
-                                        <button
-                                            type="button"
-                                            className="text-link"
-                                            onClick={() =>
-                                                setDismissedLesson(
-                                                    `${game.lesson!.step}:${game.lesson!.variant ?? ""}`,
-                                                )
-                                            }
-                                        >
-                                            Dismiss
-                                        </button>
-                                    </aside>
-                                )}
                             {liveTurnBanner && (
                                 <div
                                     className="turn-banner-overlay"
@@ -1249,6 +1230,17 @@ export default function Game() {
                             )}
                         </div>
                         <aside className="unit-panel">
+                            {game.lesson &&
+                                dismissedLesson !== lessonKey(game.lesson) && (
+                                    <LessonCard
+                                        lesson={game.lesson}
+                                        onDismiss={() =>
+                                            setDismissedLesson(
+                                                lessonKey(game.lesson!),
+                                            )
+                                        }
+                                    />
+                                )}
                             {selected && character ? (
                                 <>
                                     <div className="unit-portrait selected">
@@ -1325,7 +1317,8 @@ export default function Game() {
                                         <p className="passive">
                                             {character.passive}
                                         </p>
-                                        {state.phase === "battle" && (
+                                        {state.phase === "battle" &&
+                                            cues.skill_strip && (
                                             <p className="skill-description">
                                                 {character.skill.name}
                                                 {": "}
@@ -1351,7 +1344,8 @@ export default function Game() {
                                             )}
                                     </div>
                                 </>
-                            ) : (
+                            ) : game.lesson &&
+                              dismissedLesson !== lessonKey(game.lesson) ? null : (
                                 <div className="unit-empty">
                                     <span>✦</span>
                                     <h3>Select a champion.</h3>

@@ -11,14 +11,16 @@ final class FirstMatch
     public const EXCLUDED = ['herald', 'pyromancer', 'frostweaver', 'arcanist', 'pikeman'];
 
     /**
-     * Host squad. Knight starts in range of the rear-facing computer Warden.
+     * Host squad: the starter six standard champions (matches 1 and 2).
+     * Violet Arcanist stands where the Pikeman did, so nobody here can root.
+     * Knight starts in range of the rear-facing computer Warden.
      *
      * @return list<array{character_id: string, x: int, y: int, facing: string}>
      */
     public static function playerSquad(): array
     {
         return [
-            ['character_id' => 'pikeman', 'x' => 1, 'y' => 7, 'facing' => 'north'],
+            ['character_id' => 'arcanist', 'x' => 1, 'y' => 7, 'facing' => 'north'],
             ['character_id' => 'warden', 'x' => 2, 'y' => 7, 'facing' => 'north'],
             ['character_id' => 'knight', 'x' => 3, 'y' => 5, 'facing' => 'north'],
             ['character_id' => 'ranger', 'x' => 4, 'y' => 7, 'facing' => 'north'],
@@ -41,6 +43,22 @@ final class FirstMatch
             ['character_id' => 'cleric', 'x' => 4, 'y' => 1, 'facing' => 'south'],
             ['character_id' => 'rogue', 'x' => 5, 'y' => 1, 'facing' => 'south'],
             ['character_id' => 'knight', 'x' => 6, 'y' => 3, 'facing' => 'south'],
+        ];
+    }
+
+    /**
+     * Player's intended opening. Turn 3 is a basic rear attack, not Backstab,
+     * so Shield Bash on turn 4 is the first skill they see.
+     *
+     * @return array<int, list<array{type: string, character_id: string, x?: int, y?: int}>>
+     */
+    public static function playerScript(): array
+    {
+        return [
+            3 => [
+                ['type' => 'move', 'character_id' => 'rogue', 'x' => 6, 'y' => 4],
+                ['type' => 'attack', 'character_id' => 'rogue'],
+            ],
         ];
     }
 

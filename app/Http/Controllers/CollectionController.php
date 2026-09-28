@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Game\CharacterCatalog;
+use App\Game\MatchCredit;
 use App\Game\Progression;
 use App\Models\Game;
 use App\Models\User;
@@ -63,7 +64,7 @@ class CollectionController extends Controller
             $id = $r->user()->id;
             abort_if($g->mode === 'practice', 422, 'Practice games do not award cards or currency.');
             abort_unless($g->state['phase'] === 'finished' && $g->state['winner_id'] === $id, 403);
-            abort_unless($g->settled_at && ($g->state['turn_number'] ?? 0) >= 9, 422, 'Complete at least eight battle turns to earn a character.');
+            abort_unless($g->settled_at && MatchCredit::qualifies($g->state), 422, 'Complete at least eight battle turns to earn a character.');
             abort_if(in_array($id, $g->claims ?? []), 422, 'Your reward has already been claimed.');
             abort_unless(in_array($v['character_id'], $g->state['reward_candidates'][$id] ?? []), 422, 'Choose a loan character you drafted in this match.');
             $user = User::whereKey($id)->lockForUpdate()->firstOrFail();

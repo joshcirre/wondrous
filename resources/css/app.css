@@ -1372,6 +1372,9 @@ small {
 .board-busy svg {
     animation: spin 1s linear infinite;
 }
+.board-float-anchor {
+    transform: translate(-50%, calc(-100% - 8px));
+}
 .board-float {
     display: flex;
     flex-direction: column;
@@ -1445,26 +1448,48 @@ small {
     text-transform: uppercase;
 }
 .lesson-card {
-    position: absolute;
-    left: 16px;
-    bottom: 40px;
-    z-index: 5;
-    width: min(280px, calc(100% - 32px));
-    padding: 12px 14px;
-    background: #111a13ee;
-    border: 1px solid #d5b676;
-    border-radius: 4px;
+    flex-shrink: 0;
+    padding: 14px 17px 12px;
+    background: inherit;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    box-shadow: none;
     pointer-events: auto;
+    transition: opacity 140ms ease;
+}
+.lesson-card.is-fading {
+    opacity: 0;
 }
 .lesson-card h3 {
     margin: 4px 0 6px;
+    font-family: Cinzel, Georgia, serif;
     font-size: 1rem;
 }
 .lesson-card p {
     margin: 0 0 8px;
-    color: var(--muted);
+    color: var(--text);
+    font-family: "Inter Variable", Inter, sans-serif;
     font-size: 0.84rem;
+    line-height: 1.55;
     text-wrap: pretty;
+}
+.lesson-dismiss {
+    display: inline-flex;
+    align-items: center;
+    padding: 0;
+    border: 0;
+    background: none;
+    box-shadow: none;
+    color: var(--muted);
+    font-size: 0.75rem;
+}
+.lesson-dismiss:hover {
+    color: var(--text);
+}
+@media (prefers-reduced-motion: reduce) {
+    .lesson-card {
+        transition: none;
+    }
 }
 .hero-actions {
     display: flex;
@@ -1555,6 +1580,8 @@ small {
     color: #82b7a4;
 }
 .unit-panel {
+    display: flex;
+    flex-direction: column;
     border-left: 1px solid var(--line);
     background: #1c231b;
     min-width: 0;
@@ -3386,6 +3413,9 @@ label {
 .text-link,
 .eyebrow {
     color: var(--gold);
+}
+.lesson-dismiss {
+    color: var(--muted);
 }
 .flash {
     background: #3d3422;

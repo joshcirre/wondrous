@@ -118,10 +118,17 @@ class FirstMatchTest extends TestCase
 
         $rogue = $this->unit($game, $user->id, 'rogue');
         $enemyKnight = $this->unit($game, ComputerOpponent::ID, 'knight');
-        $before = $enemyKnight['hp'];
-        $this->act($game, $user, 'move', ['unit_id' => $rogue['id'], 'x' => 6, 'y' => 4]);
-        $this->act($game, $user, 'skill', ['unit_id' => $rogue['id'], 'target_id' => $enemyKnight['id']]);
-        self::assertSame($before - 52, $this->unit($game, ComputerOpponent::ID, 'knight')['hp']);
+        foreach (FirstMatch::playerScript()[3] as $step) {
+            $payload = ['unit_id' => $rogue['id']];
+            if ($step['type'] === 'move') {
+                $payload += ['x' => $step['x'], 'y' => $step['y']];
+            } else {
+                $payload['target_id'] = $enemyKnight['id'];
+            }
+            $this->act($game, $user, $step['type'], $payload);
+        }
+        self::assertTrue(collect($game->state['events'])->contains(fn ($event) => ($event['type'] ?? '') === 'attack'));
+        self::assertFalse(collect($game->state['events'])->contains(fn ($event) => ($event['type'] ?? '') === 'skill'));
         $this->act($game, $user, 'end_turn');
 
         self::assertSame(['x' => 2, 'y' => 0], ['x' => $this->unit($game, ComputerOpponent::ID, 'druid')['x'], 'y' => $this->unit($game, ComputerOpponent::ID, 'druid')['y']]);
@@ -183,6 +190,54 @@ class FirstMatchTest extends TestCase
         $this->actingAs($user)->getJson('/games/'.$game->code.'/state')->assertOk()->assertJsonPath('game.lesson', null);
     }
 
+    public function test_turn_three_script_uses_no_skill(): void
+    {
+        $steps = FirstMatch::playerScript()[3] ?? [];
+        self::assertNotEmpty($steps);
+        foreach ($steps as $step) {
+            self::assertNotSame('skill', $step['type']);
+        }
+        self::assertContains('attack', array_column($steps, 'type'));
+    }
+
+    public function test_lesson_three_body_points_at_the_chip_not_backstab(): void
+    {
+        self::assertSame(
+            'Before you click, check the chip. Attacks from behind can\'t be blocked.',
+            LessonCatalog::copy(3)['body'],
+        );
+        self::assertStringNotContainsString('Backstab', LessonCatalog::copy(3)['body']);
+        self::assertStringNotContainsString('52', LessonCatalog::copy(3)['body']);
+    }
+
+    public function test_player_squad_is_the_starter_standards_with_arcanist_not_pikeman_or_revenant(): void
+    {
+        $ids = array_column(FirstMatch::playerSquad(), 'character_id');
+        self::assertSame(
+            ['arcanist', 'warden', 'knight', 'ranger', 'cleric', 'rogue'],
+            $ids,
+        );
+        self::assertSame(['x' => 1, 'y' => 7, 'facing' => 'north'], array_intersect_key(
+            FirstMatch::playerSquad()[0],
+            array_flip(['x', 'y', 'facing']),
+        ));
+        foreach (['pikeman', 'revenant', 'druid', 'herald'] as $id) {
+            self::assertNotContains($id, $ids);
+        }
+        foreach ($ids as $id) {
+            self::assertNotContains($id, ['pikeman', 'frostweaver']);
+        }
+
+        $user = User::factory()->create();
+        $game = $this->firstMatch($user);
+        $host = array_column(array_filter($game->state['units'], fn ($unit) => $unit['owner_id'] === $user->id), 'character_id');
+        self::assertSame($ids, $host);
+        $arcanist = $this->unit($game, $user->id, 'arcanist');
+        self::assertSame(1, $arcanist['x']);
+        self::assertSame(7, $arcanist['y']);
+        self::assertSame('north', $arcanist['facing']);
+    }
+
     public function test_computer_squad_never_contains_excluded_champions(): void
     {
         foreach (FirstMatch::computerSquad() as $placed) {
@@ -225,7 +280,57 @@ class FirstMatchTest extends TestCase
         self::assertNotNull($game->settled_at);
         $this->assertDatabaseCount('reward_transactions', 0);
         $this->postJson('/games/'.$game->code.'/claim', ['character_id' => 'pyromancer'])->assertUnprocessable();
-        $this->getJson('/games/'.$game->code.'/replay-data')->assertOk()->assertJsonPath('game.state.draft_picks.'.$user->id.'.0', 'pikeman');
+        $this->getJson('/games/'.$game->code.'/replay-data')->assertOk()->assertJsonPath('game.state.draft_picks.'.$user->id.'.0', 'arcanist');
+    }
+
+    public function test_first_match_rejects_skills_until_the_viewers_fourth_turn(): void
+    {
+        $user = User::factory()->create();
+        $game = $this->firstMatch($user);
+        $cleric = $this->unit($game, $user->id, 'cleric');
+        $warden = $this->unit($game, $user->id, 'warden');
+        $payload = ['unit_id' => $cleric['id'], 'target_id' => $warden['id']];
+
+        for ($ownTurn = 1; $ownTurn <= 3; $ownTurn++) {
+            $view = $this->actingAs($user)->getJson('/games/'.$game->code.'/state')->assertOk()->json('game');
+            self::assertFalse($view['options']['cues']['skill_strip']);
+            self::assertSame($ownTurn, (int) ceil($game->state['turn_number'] / 2));
+            $this->actingAs($user)->postJson('/games/'.$game->code.'/actions', [
+                'type' => 'skill',
+                'version' => $game->version,
+            ] + $payload)->assertUnprocessable()->assertJsonPath('message', 'Skills unlock on your fourth turn.');
+            $this->act($game, $user, 'end_turn');
+        }
+
+        $view = $this->actingAs($user)->getJson('/games/'.$game->code.'/state')->assertOk()->json('game');
+        self::assertTrue($view['options']['cues']['skill_strip']);
+        self::assertSame(4, (int) ceil($game->state['turn_number'] / 2));
+        $this->actingAs($user)->postJson('/games/'.$game->code.'/actions', [
+            'type' => 'skill',
+            'version' => $game->version,
+        ] + $payload)->assertOk();
+        self::assertTrue(collect($game->refresh()->state['events'])->contains(fn ($event) => ($event['type'] ?? '') === 'skill'));
+    }
+
+    public function test_practice_allows_a_skill_on_turn_one(): void
+    {
+        $user = User::factory()->create();
+        $code = $this->actingAs($user)->postJson('/games', [
+            'name' => 'Practice arena',
+            'ranked' => false,
+            'mode' => 'practice',
+        ])->assertCreated()->json('code');
+        $game = Game::where('code', $code)->firstOrFail();
+        self::assertNull($game->state['scenario'] ?? null);
+        self::assertSame(1, $game->state['turn_number']);
+        $cleric = $this->unit($game, $user->id, 'cleric');
+        $warden = $this->unit($game, $user->id, 'warden');
+        $this->actingAs($user)->postJson('/games/'.$game->code.'/actions', [
+            'type' => 'skill',
+            'version' => $game->version,
+            'unit_id' => $cleric['id'],
+            'target_id' => $warden['id'],
+        ])->assertOk();
     }
 
     public function test_first_match_is_practice_only_and_new_players_see_the_entry(): void

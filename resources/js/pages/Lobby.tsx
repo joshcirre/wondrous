@@ -414,8 +414,8 @@ export default function Lobby() {
                             />
                             Reduced board
                             <small>
-                                Hide facing breakdown on turns 1–2 and the
-                                skill strip on turns 1–3.
+                                Hide facing breakdown on your turns 1–2 and the
+                                skill strip on your turns 1–3.
                             </small>
                         </label>
                         <ErrorBanner message={error} />

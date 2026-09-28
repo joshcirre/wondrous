@@ -11,7 +11,7 @@ use Illuminate\Support\Str;
 
 abstract class TestCase extends BaseTestCase
 {
-    protected function recordFinishedMatches(User $user, int $count, ?int $winnerId = null): void
+    protected function recordFinishedMatches(User $user, int $count, ?int $winnerId = null, int $turnNumber = 1): void
     {
         for ($i = 0; $i < $count; $i++) {
             Game::create([
@@ -26,6 +26,7 @@ abstract class TestCase extends BaseTestCase
                 'state' => [
                     'phase' => 'finished',
                     'winner_id' => $winnerId ?? ComputerOpponent::ID,
+                    'turn_number' => $turnNumber,
                     'players' => [['id' => $user->id, 'name' => $user->name]],
                     'units' => [],
                 ],
