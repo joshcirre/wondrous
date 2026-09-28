@@ -96,13 +96,12 @@ function renderDecidingText(deciding: NonNullable<State["deciding"]>) {
     let rest = deciding.text;
     const turn = rest.match(/^Turn (\d+): /);
     if (turn) {
-        pieces.push("Turn ");
         pieces.push(
             <span key="turn" className="result-turn">
-                {turn[1]}
+                {`Turn ${turn[1]}:`}
             </span>,
         );
-        pieces.push(": ");
+        pieces.push(" ");
         rest = rest.slice(turn[0].length);
     }
     let key = 0;

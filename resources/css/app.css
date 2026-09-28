@@ -1903,19 +1903,29 @@ small {
     font-weight: 600;
 }
 .result-turn {
+    font-weight: 400;
     font-variant-numeric: tabular-nums;
-    font-weight: 600;
 }
 .result-lesson {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
     margin-top: 10px;
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
     animation: result-copy-in 140ms ease both;
 }
 .result-banner .result-lesson .eyebrow {
-    margin-bottom: 2px;
+    margin: 0;
+    flex: 0 0 auto;
     color: var(--gold);
 }
 .result-lesson p:not(.eyebrow) {
-    font-size: 0.8rem;
+    margin: 0;
+    min-width: 0;
+    flex: 1 1 auto;
+    font-size: 14px;
     color: var(--muted);
     white-space: nowrap;
     overflow: hidden;
