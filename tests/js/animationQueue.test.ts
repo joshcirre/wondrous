@@ -243,6 +243,32 @@ describe("createAnimationQueue", () => {
         assert.deepEqual(q.view().deathBanners, []);
     });
 
+    it("keeps reduced-motion floats when now() advances during pushEvents", () => {
+        let now = 1000;
+        const q = createAnimationQueue({
+            now: () => ++now,
+            viewerId: 1,
+            playerName: () => "Rowan",
+            reducedMotion: true,
+        });
+        q.pushEvents(
+            [
+                attackEvent({
+                    outcome: "block",
+                    damage: 0,
+                    roll: { accuracy: 95, hit_roll: 11, block_chance: 40, block_roll: 9 },
+                }),
+            ],
+            { units },
+        );
+        const view = q.view();
+        assert.equal(view.floats.length, 1);
+        assert.equal(view.floats[0].title, "Blocked");
+        assert.equal(view.floats[0].chance, 40);
+        assert.equal(view.floats[0].rise, 0);
+        assert.equal(view.inputLocked, true);
+    });
+
     it("snaps to the final board under reduced motion and holds static floating text for 900 ms", () => {
         const { q, time } = queue({ reducedMotion: true });
         q.pushEvents([moveEvent(), attackEvent()], { units });

@@ -293,8 +293,8 @@ export function createAnimationQueue(options: QueueOptions) {
     function liveFloats(at: number): FloatingResult[] {
         const visible: FloatingResult[] = [];
         for (const item of floats) {
-            const age = at - item.born;
-            if (age < 0 || age >= TIMING.floatMs) continue;
+            const age = Math.max(0, at - item.born);
+            if (age >= TIMING.floatMs) continue;
             const fadeStart = TIMING.floatMs - TIMING.floatFadeMs;
             visible.push({
                 id: item.id,
@@ -320,8 +320,8 @@ export function createAnimationQueue(options: QueueOptions) {
     function liveEffects(at: number): MotionEffect[] {
         return effects
             .map((item) => {
-                const age = at - item.born;
-                if (age < 0 || age > item.life) return null;
+                const age = Math.max(0, at - item.born);
+                if (age > item.life) return null;
                 return {
                     id: item.id,
                     kind: item.kind,
