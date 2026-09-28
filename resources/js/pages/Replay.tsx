@@ -11,6 +11,7 @@ import {
 import GameDisplay from "../components/GameDisplay";
 import { Eyebrow } from "../components/Shell";
 import { Portrait } from "../components/CharacterCard";
+import { actorName } from "../lib/replayActors";
 import type { Game, Shared, State, Unit, Catalog } from "../types";
 import "../../css/replay.css";
 const Battlefield = lazy(() => import("../components/Battlefield"));
@@ -177,8 +178,7 @@ export default function Replay() {
                 list.scrollTop = Math.max(0, top - list.clientHeight / 2);
         }
     }, [index]);
-    const actor =
-        state.players.find((p) => p.id === frame?.actor_id)?.name || "Arena";
+    const actor = actorName(state.players, frame?.actor_id ?? null);
     return (
         <GameDisplay label="Replay display">
             <Head title={`Review · ${game.name}`} />
@@ -362,9 +362,10 @@ export default function Replay() {
                                             {actionNames[f.action] || f.action}
                                         </strong>
                                         <span>
-                                            {f.state.players.find(
-                                                (p) => p.id === f.actor_id,
-                                            )?.name || "Arena"}
+                                            {actorName(
+                                                f.state.players,
+                                                f.actor_id,
+                                            )}
                                         </span>
                                     </button>
                                 ))}

@@ -16,7 +16,7 @@ Movement is orthogonal, measured by a shortest traversable path. Living units bl
 
 ## Combat and timing
 
-Basic attacks roll server-side accuracy (1–100), then directional block. Frontal block uses the defender's full block chance, side attacks half (rounded down), and rear attacks zero. Diagonal relative positions use the dominant displacement axis; exact ties use the vertical axis. Armor subtracts from damage, with a minimum of one damage on a successful hit. Rolls and outcomes are written into the match log, retained for the most recent 80 messages; persistent events retain action history.
+Basic attacks roll server-side accuracy (1–100), then directional block. Frontal block uses the defender's full block chance, side attacks half (rounded down), and rear attacks zero. Diagonal relative positions use the dominant displacement axis; exact ties use the vertical axis. Armor subtracts from damage, with a minimum of one damage on a successful hit. Rolls and outcomes are written into the match log with owner-qualified names and plain-language chances ("Alice's Ashen Ranger: Hit, 90% chance."), retained for the most recent 80 messages; persistent events retain action history. The finished match also carries a server-owned deciding line.
 
 Skills always hit valid targets and bypass block. Armor still applies unless the skill explicitly ignores armor. A skill costs mana and starts its individual cooldown even if its healing would exceed maximum health. Basic attacks consume the action and cause recovery even on miss or block. A unit can still complete its movement after attacking.
 

@@ -49,7 +49,9 @@ final class GameEngine
         if ($type === 'resign') {
             $s['winner_id'] = $this->opponent($s, $actorId);
             $s['phase'] = 'finished';
-            $this->log($s, ($actorId === ComputerOpponent::ID ? 'Practice opponent' : 'Player '.$actorId).' resigned.');
+            $s['finish_reason'] = 'resign';
+            $this->log($s, Chronicle::fill(Chronicle::RESIGNED, ['name' => Chronicle::playerName($s, $actorId)]));
+            $s['deciding'] = DecidingMoment::resolve($s);
             $this->emit($s, 'game_over', ['winner_id' => $s['winner_id']]);
 
             return $s;
@@ -65,7 +67,10 @@ final class GameEngine
                 $s['reward_candidates'][$actorId][] = $id;
             }
             $s['offers'][$actorId] = $this->offers($s, $actorId);
-            $this->log($s, ($actorId === ComputerOpponent::ID ? 'Practice opponent' : 'Player '.$actorId).' drafted '.CharacterCatalog::get($id)['name'].'.');
+            $this->log($s, Chronicle::fill(Chronicle::DRAFTED, [
+                'name' => Chronicle::playerName($s, $actorId),
+                'champion' => CharacterCatalog::get($id)['name'],
+            ]));
             $s['turn_player_id'] = $this->opponent($s, $actorId);
             if (count($s['draft_picks'][$s['host_id']]) === 6 && count($s['draft_picks'][$actorId]) === 6 && array_sum(array_map('count', $s['draft_picks'])) === 12) {
                 $s['phase'] = 'deployment';
@@ -145,7 +150,7 @@ final class GameEngine
             $s['units'][$i]['x'] = $x;
             $s['units'][$i]['y'] = $y;
             $s['moved'] = true;
-            $this->log($s, $c['name'].' moved.');
+            $this->log($s, Chronicle::fill(Chronicle::MOVED, ['name' => Chronicle::unitName($s, $u)]));
             $this->emit($s, 'move', ['unit_id' => $u['id'], 'owner_id' => $u['owner_id'], 'from' => $from, 'to' => [$x, $y], 'path' => $path]);
         } else {
             $this->require(! $s['acted'], 'You already attacked or cast this turn.');
@@ -195,7 +200,11 @@ final class GameEngine
     {
         $id = $s['units'][$i]['character_id'];
         $c = CharacterCatalog::get($id);
-        $this->log($s, $c['name'].' used '.$c['skill']['name'].'.');
+        $this->log($s, Chronicle::fill(Chronicle::SKILL, [
+            'name' => Chronicle::unitName($s, $s['units'][$i]),
+            'skill' => $c['skill']['name'],
+        ]));
+        $s['casting_skill'] = $c['skill']['name'];
         $amount = $this->skillAmount($s, $i, $j);
         $targetIds = [];
         $amounts = [];
@@ -262,6 +271,7 @@ final class GameEngine
             'amounts' => $amounts,
             'statuses' => $statuses,
         ]);
+        unset($s['casting_skill']);
     }
 
     private function damage(array &$s, int $i, int $j, int $amount, bool $pierce, bool $roll): int
@@ -275,9 +285,11 @@ final class GameEngine
         $chance = (int) floor($d['block'] * $factor);
         if ($roll) {
             $hit = ($this->random)(1, 100);
-            $this->log($s, $c['name'].' accuracy roll '.$hit.' / '.$c['accuracy'].'.');
             if ($hit > $c['accuracy']) {
-                $this->log($s, 'Attack missed '.$d['name'].'.');
+                $this->log($s, Chronicle::fill(Chronicle::MISS, [
+                    'name' => Chronicle::unitName($s, $u),
+                    'chance' => $c['accuracy'],
+                ]));
                 $this->emit($s, 'attack', [
                     'unit_id' => $u['id'], 'owner_id' => $u['owner_id'], 'target_id' => $t['id'], 'target_owner_id' => $t['owner_id'],
                     'side' => $side, 'roll' => ['accuracy' => $c['accuracy'], 'hit_roll' => $hit, 'block_chance' => $chance, 'block_roll' => null],
@@ -288,9 +300,11 @@ final class GameEngine
             }
             $chance = $this->blockChance($s, $i, $j);
             $block = ($this->random)(1, 100);
-            $this->log($s, $d['name'].' block roll '.$block.' / '.$chance.'.');
             if ($block <= $chance) {
-                $this->log($s, $d['name'].' blocked the attack.');
+                $this->log($s, Chronicle::fill(Chronicle::BLOCKED, [
+                    'name' => Chronicle::unitName($s, $t),
+                    'chance' => $chance,
+                ]));
                 $this->emit($s, 'attack', [
                     'unit_id' => $u['id'], 'owner_id' => $u['owner_id'], 'target_id' => $t['id'], 'target_owner_id' => $t['owner_id'],
                     'side' => $side, 'roll' => ['accuracy' => $c['accuracy'], 'hit_roll' => $hit, 'block_chance' => $chance, 'block_roll' => $block],
@@ -299,10 +313,19 @@ final class GameEngine
 
                 return 0;
             }
+            $this->log($s, Chronicle::fill(Chronicle::HIT, [
+                'name' => Chronicle::unitName($s, $u),
+                'chance' => $c['accuracy'],
+            ]));
         }
         $damage = $this->resolveDamage($s, $i, $j, $amount, $pierce);
         $s['units'][$j]['hp'] -= $damage;
-        $this->log($s, $c['name'].' dealt '.$damage.' damage to '.$d['name'].'.');
+        $this->log($s, Chronicle::fill(Chronicle::DAMAGE, [
+            'attacker' => Chronicle::unitName($s, $u),
+            'defender' => Chronicle::unitName($s, $t),
+            'damage' => $damage,
+        ]));
+        DecidingMoment::noteHit($s, $u, $t, $damage);
         if ($roll) {
             $this->emit($s, 'attack', [
                 'unit_id' => $u['id'], 'owner_id' => $u['owner_id'], 'target_id' => $t['id'], 'target_owner_id' => $t['owner_id'],
@@ -312,6 +335,7 @@ final class GameEngine
         }
         if ($s['units'][$j]['hp'] === 0) {
             $this->death($s, $j, $u['owner_id']);
+            DecidingMoment::noteKill($s, $u, $t, $roll ? $side : null, $s['casting_skill'] ?? null);
         }
 
         return $damage;
@@ -319,7 +343,7 @@ final class GameEngine
 
     private function death(array &$s, int $j, int $killer): void
     {
-        $this->log($s, CharacterCatalog::get($s['units'][$j]['character_id'])['name'].' was defeated.');
+        $this->log($s, Chronicle::fill(Chronicle::DEFEATED, ['name' => Chronicle::unitName($s, $s['units'][$j])]));
         $this->emit($s, 'death', ['unit_id' => $s['units'][$j]['id'], 'owner_id' => $s['units'][$j]['owner_id'], 'by' => $killer]);
         if ($s['units'][$j]['character_id'] === 'herald') {
             foreach ($s['units'] as $k => $u) {
@@ -343,10 +367,25 @@ final class GameEngine
                 if (($u['statuses']['burn'] ?? 0) > 0) {
                     $burn = StatusCatalog::amount('burn');
                     $s['units'][$i]['hp'] = max(0, $u['hp'] - $burn);
-                    $this->log($s, CharacterCatalog::get($u['character_id'])['name'].' suffered '.$burn.' burn damage.');
+                    $this->log($s, Chronicle::fill(Chronicle::BURN, [
+                        'name' => Chronicle::unitName($s, $u),
+                        'amount' => $burn,
+                    ]));
                     $this->emit($s, 'status_tick', ['unit_id' => $u['id'], 'owner_id' => $u['owner_id'], 'status' => 'burn', 'amount' => $burn]);
                     if ($s['units'][$i]['hp'] === 0) {
-                        $this->death($s, $i, $u['burn_source'] ?? $this->opponent($s, $actorId));
+                        $killerId = $u['burn_source'] ?? $this->opponent($s, $actorId);
+                        $this->death($s, $i, $killerId);
+                        $killer = $this->livingOwned($s, (int) $killerId);
+                        if ($killer) {
+                            DecidingMoment::noteKill($s, $killer, $u, null, null);
+                        } else {
+                            $s['story']['last_kill'] = [
+                                'attacker' => Chronicle::playerName($s, $killerId),
+                                'defender' => Chronicle::unitName($s, $u),
+                                'side' => null,
+                                'skill' => null,
+                            ];
+                        }
                     }
                 }
                 foreach ($u['statuses'] as $key => $duration) {
@@ -378,7 +417,11 @@ final class GameEngine
                 $s['phase'] = 'finished';
                 $s['winner_id'] = $this->opponent($s, $p['id']);
                 $s['turn_player_id'] = null;
-                $this->log($s, ($s['winner_id'] === ComputerOpponent::ID ? 'Practice opponent' : 'Player '.$s['winner_id']).' wins by elimination.');
+                $s['finish_reason'] = 'elimination';
+                $this->log($s, Chronicle::fill(Chronicle::ELIMINATION, [
+                    'name' => Chronicle::playerName($s, $s['winner_id']),
+                ]));
+                $s['deciding'] = DecidingMoment::resolve($s);
                 $this->emit($s, 'game_over', ['winner_id' => $s['winner_id']]);
 
                 return;
@@ -401,6 +444,17 @@ final class GameEngine
         foreach ($s['players'] as $p) {
             if ($p['id'] !== $id) {
                 return $p['id'];
+            }
+        }
+
+        return null;
+    }
+
+    private function livingOwned(array $s, int $ownerId): ?array
+    {
+        foreach ($s['units'] as $unit) {
+            if ($unit['owner_id'] === $ownerId && $unit['hp'] > 0) {
+                return $unit;
             }
         }
 

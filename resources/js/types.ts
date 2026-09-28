@@ -145,6 +145,7 @@ export type State = {
     winner_id: number | null;
     finish_reason?: string;
     expired_player_ids?: number[];
+    deciding?: { rule: string; text: string };
     log: { turn: number; text: string }[];
     events?: GameEvent[];
     reward_candidates: Record<string, string[]>;

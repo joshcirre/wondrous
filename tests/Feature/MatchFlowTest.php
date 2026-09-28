@@ -194,7 +194,7 @@ class MatchFlowTest extends TestCase
         $this->act($game, $guest, 'end_turn');
         $this->act($game, $host, 'attack', ['unit_id' => $host->id.'-ranger', 'target_id' => $guest->id.'-ranger']);
         $expected = $game->state;
-        self::assertStringContainsString('accuracy roll', implode(' ', array_column($expected['log'], 'text')));
+        self::assertStringContainsString('Hit, 95% chance', implode(' ', array_column($expected['log'], 'text')));
         $eventsBefore = DB::table('verb_events')->count();
         $this->app->bind(GameEngine::class, fn () => new GameEngine(function () {
             throw new \RuntimeException('Replay must never use randomness');

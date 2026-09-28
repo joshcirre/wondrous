@@ -1,14 +1,16 @@
 export const BADGE_SLOT_PX = 32;
 export const BADGE_GAP_PX = 4;
 export const BADGE_CHIP_GAP = 0.025;
-export const BADGE_CHIP_MAX_W = 0.42;
+export const BADGE_CHIP_W = 0.28;
+export const BADGE_CHIP_H = BADGE_CHIP_W * 0.68;
+export const BADGE_CHIP_MAX_W = BADGE_CHIP_W;
 export const BADGE_ROW_MAX_W = 1;
 export const HEALTH_BAR_Y = 1.37;
 export const HEALTH_BAR_H = 0.067;
 export const BADGE_HEALTH_GAP = 0.08;
 export const RESULT_CLEARANCE = 0.08;
 export const BADGE_ROW_Y =
-    HEALTH_BAR_Y + HEALTH_BAR_H / 2 + BADGE_HEALTH_GAP + (BADGE_CHIP_MAX_W * 0.68) / 2;
+    HEALTH_BAR_Y + HEALTH_BAR_H / 2 + BADGE_HEALTH_GAP + BADGE_CHIP_H / 2;
 export const BADGE_CHIP_SURFACE = "#191f1a";
 export const BADGE_CHIP_LINE = "rgba(213, 204, 174, 0.28)";
 export const BADGE_COUNT_COLOR = "#eae7db";
@@ -20,11 +22,7 @@ export function badgeChipSize(count: number): { width: number; height: number } 
     if (count <= 0) {
         return { width: 0, height: 0 };
     }
-    const width = Math.min(
-        BADGE_CHIP_MAX_W,
-        (BADGE_ROW_MAX_W - (count - 1) * BADGE_CHIP_GAP) / count,
-    );
-    return { width, height: width * 0.68 };
+    return { width: BADGE_CHIP_W, height: BADGE_CHIP_H };
 }
 
 export function badgeRowWorldWidth(count: number): number {

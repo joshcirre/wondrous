@@ -1877,6 +1877,23 @@ small {
     color: var(--muted);
     font-size: 0.9rem;
 }
+.result-deciding {
+    margin: 12px 0 0;
+    padding: 10px 0 0;
+    border: 0;
+    border-top: 1px solid var(--line);
+    box-shadow: none;
+    background: none;
+}
+.result-deciding .eyebrow {
+    margin-bottom: 4px;
+}
+.result-deciding p {
+    font-family: Cinzel, Georgia, serif;
+    font-size: 1.05rem;
+    color: var(--text);
+    line-height: 1.45;
+}
 .result-rewards {
     display: flex;
     align-items: center;

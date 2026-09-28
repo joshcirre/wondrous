@@ -873,13 +873,20 @@ export default function Game() {
                                             ? "A worthy battle."
                                             : "The arena is closed."}
                                 </h2>
-                                <p>
-                                    {!state.winner_id
-                                        ? "Neither formation was locked before the deadline."
-                                        : state.winner_id === viewer.id
-                                          ? "Your warband stands triumphant."
-                                          : `${state.players.find((p) => p.id === state.winner_id)?.name || "Your rival"} takes the field.`}
-                                </p>
+                                {state.deciding?.text ? (
+                                    <blockquote className="result-deciding">
+                                        <Eyebrow>What decided it</Eyebrow>
+                                        <p>{state.deciding.text}</p>
+                                    </blockquote>
+                                ) : (
+                                    <p>
+                                        {!state.winner_id
+                                            ? "Neither formation was locked before the deadline."
+                                            : state.winner_id === viewer.id
+                                              ? "Your warband stands triumphant."
+                                              : `${state.players.find((p) => p.id === state.winner_id)?.name || "Your rival"} takes the field.`}
+                                    </p>
+                                )}
                             </div>
                             <div className="result-rewards">
                                 {practice ? (

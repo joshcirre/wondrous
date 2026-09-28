@@ -7,7 +7,9 @@ use App\Events\LobbyUpdated;
 use App\Events\MatchAdvanced;
 use App\Game\BoardCues;
 use App\Game\CharacterCatalog;
+use App\Game\Chronicle;
 use App\Game\ComputerOpponent;
+use App\Game\DecidingMoment;
 use App\Game\GameEngine;
 use App\Game\LessonCatalog;
 use App\Game\MatchCredit;
@@ -203,8 +205,11 @@ class MatchService
         $state['expired_player_ids'] = $overdue;
         $state['turn_player_id'] = null;
         $state['active_unit_id'] = null;
-        $state['log'][] = ['turn' => $state['turn_number'], 'text' => $winner === null ? 'Both deployment deadlines expired. The match is a draw.' : 'The response deadline expired. Player '.$winner.' wins.'];
+        $state['log'][] = ['turn' => $state['turn_number'], 'text' => $winner === null
+            ? Chronicle::TIMEOUT_DRAW
+            : Chronicle::fill(Chronicle::TIMEOUT_WIN, ['name' => Chronicle::playerName($state, $overdue[0] ?? null)])];
         $state['log'] = array_slice($state['log'], -80);
+        $state['deciding'] = DecidingMoment::resolve($state);
         if (! $game->settled_at) {
             $state = $this->settle($game, $state);
         }

@@ -63,3 +63,9 @@ Mockup: Plate `board-cues.png` (positions and numbers are samples). All highligh
 - Ward uses steel `#9fb3c8`.
 - Root uses moss `#8f9a5b`. Not tan, which is already the side colour on the facing ring.
 - No gold on any badge, because gold means you can act.
+- Chip size stays one readable size (`0.28` world units). Chips do not shrink when the row grows.
+
+### End screen
+- Eyebrow stays gold mono: "The battle is decided".
+- The headline stays Cinzel ("Victory is yours." / "A worthy battle." / "Match drawn.").
+- Under it, a hairline block with gold mono "What decided it" and the server line in Cinzel. No drop shadow. The client never writes this line.
