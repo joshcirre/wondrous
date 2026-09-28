@@ -45,3 +45,21 @@ Mockup: Plate `board-cues.png` (positions and numbers are samples). All highligh
 ## Reduced board (per-match setting, first match)
 - Breakdown hidden (turns 1–2): the chip shows only the big "lands" number, the same size and in the same spot, with no second line. The target's base ring stays the plain team ring, with no front/side/rear split.
 - Skill hidden (turns 1–3): hide the whole action strip. Don't leave a lone "Attack · A" pill there, because clicking an enemy already means attack.
+
+## Follow-ups (2026-09-28)
+### Lesson card
+- Move it off the board into the top of the right side panel. That panel is empty ("Select a champion.") until a champion is selected, so the card lives there, and it sits above the champion card once one is selected.
+- Styling: the "LESSON 1" label in gold mono uppercase, the title in Cinzel, one or two body lines in Inter, and "Dismiss" as a small muted text link. Use the same hairline and surface as the panel, with no drop shadow. The card should never cover a tile.
+- When the lesson steps forward, fade the card over 140 ms. No slide.
+
+### Result box vs. status badges
+- Anchor the result box above the target's badge row, or above its health bar when it has no badges, never on top of the badges.
+- While the result shows, hide the target's own badges and fade them back in afterwards. Neighbouring badges stay put under the box, with the box drawn on top.
+
+### Status badge colours
+- Every badge is the same dark chip (surface `#191f1a` with a hairline border). The glyph carries the colour and the count uses the text colour `#eae7db`.
+- Rest and stun use grey `#a6ad9f`, because both mean spent.
+- Burn uses ember `#e0894a`, the damage-number orange and not the red team colour.
+- Ward uses steel `#9fb3c8`.
+- Root uses moss `#8f9a5b`. Not tan, which is already the side colour on the facing ring.
+- No gold on any badge, because gold means you can act.

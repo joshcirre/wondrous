@@ -1,12 +1,19 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useFrame } from "@react-three/fiber";
 import { Billboard, Html, Line } from "@react-three/drei";
 import { CanvasTexture, Color, Group, Mesh, SRGBColorSpace } from "three";
 import type { AimChip } from "../lib/aimChip";
 import {
+    BADGE_CHIP_LINE,
+    BADGE_CHIP_SURFACE,
+    BADGE_COUNT_COLOR,
+    BADGE_FADE_MS,
     BADGE_ROW_Y,
     STATUS_OVERLAY_POINTER_EVENTS,
+    STATUS_STYLE,
     badgeChipSize,
     badgeWorldX,
+    resultAnchorY,
     type StatusBadge,
 } from "../lib/statusCues";
 
@@ -495,6 +502,8 @@ export function FloatingResultCard({
     chance,
     rise,
     opacity,
+    hasBadges = false,
+    badgeCount = 0,
 }: {
     kind: "hit" | "block" | "miss" | "heal";
     title: string;
@@ -502,22 +511,25 @@ export function FloatingResultCard({
     chance?: number;
     rise: number;
     opacity: number;
+    hasBadges?: boolean;
+    badgeCount?: number;
 }) {
     const worldRise = rise / 80;
+    const anchorY = resultAnchorY(hasBadges, badgeCount);
     return (
         <Html
-            position={[0, 1.55 + worldRise, 0]}
-            center
+            position={[0, anchorY + worldRise, 0]}
             transform={false}
             occlude={false}
-            zIndexRange={[200, 0]}
+            zIndexRange={[240, 0]}
             style={{
                 pointerEvents: "none",
                 opacity,
-                zIndex: 20,
+                zIndex: 24,
                 fontSize: 16,
             }}
         >
+            <div className="board-float-anchor">
             <div
                 className={`board-float ${kind}`}
                 data-float-overlay={`${kind}:${title}:${value ?? ""}:${chance ?? ""}`}
@@ -525,6 +537,7 @@ export function FloatingResultCard({
                 {value !== undefined && <strong>{value}</strong>}
                 <span>{title}</span>
                 {chance !== undefined && <small>{chance}%</small>}
+            </div>
             </div>
         </Html>
     );
@@ -656,13 +669,6 @@ export function MotionEffectMesh({
     );
 }
 
-function badgeInk(color: string): string {
-    const value = new Color(color);
-    return value.r * 0.3 + value.g * 0.5 + value.b * 0.2 > 0.45
-        ? "#1a1d18"
-        : "#f4f1e6";
-}
-
 function makeBadgeTexture(badge: StatusBadge): CanvasTexture {
     const canvas = document.createElement("canvas");
     canvas.width = 384;
@@ -671,19 +677,19 @@ function makeBadgeTexture(badge: StatusBadge): CanvasTexture {
     if (!ctx) {
         return new CanvasTexture(canvas);
     }
-    const ink = badgeInk(badge.color);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = badge.color;
+    ctx.fillStyle = BADGE_CHIP_SURFACE;
     roundRect(ctx, 10, 16, 364, 192, 48);
     ctx.fill();
-    ctx.lineWidth = 14;
-    ctx.strokeStyle = "#141612";
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = BADGE_CHIP_LINE;
     ctx.stroke();
-    ctx.fillStyle = ink;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
+    ctx.fillStyle = badge.color;
     ctx.font = "800 108px Cinzel, Georgia, serif";
     ctx.fillText(badge.glyph, 118, 118);
+    ctx.fillStyle = BADGE_COUNT_COLOR;
     ctx.font = "800 104px Inter, system-ui, sans-serif";
     ctx.fillText(badge.text, 268, 120);
     const texture = new CanvasTexture(canvas);
@@ -714,11 +720,13 @@ function StatusBadgeChip({
     index,
     count,
     showLabel = false,
+    opacity = 1,
 }: {
     badge: StatusBadge;
     index: number;
     count: number;
     showLabel?: boolean;
+    opacity?: number;
 }) {
     const texture = useMemo(
         () => makeBadgeTexture(badge),
@@ -726,6 +734,7 @@ function StatusBadgeChip({
     );
     useEffect(() => () => texture.dispose(), [texture]);
     const { width, height } = badgeChipSize(count);
+    if (opacity <= 0.01) return null;
     return (
         <Billboard
             position={[badgeWorldX(index, count), BADGE_ROW_Y, 0]}
@@ -736,6 +745,7 @@ function StatusBadgeChip({
                 <meshBasicMaterial
                     map={texture}
                     transparent
+                    opacity={opacity}
                     depthTest={false}
                     depthWrite={false}
                     toneMapped={false}
@@ -750,6 +760,7 @@ function StatusBadgeChip({
                     style={{
                         pointerEvents: STATUS_OVERLAY_POINTER_EVENTS,
                         background: "transparent",
+                        opacity,
                     }}
                     wrapperClass="status-badge-html"
                 >
@@ -771,8 +782,8 @@ export function MoonBadge({ turns }: { turns: number }) {
             badges={[
                 {
                     id: "rest",
-                    glyph: "☾",
-                    color: spentGrey,
+                    glyph: STATUS_STYLE.rest.glyph,
+                    color: STATUS_STYLE.rest.color,
                     turns,
                     text: String(turns),
                     label: `Recovering · ${turns}`,
@@ -787,13 +798,27 @@ export function MoonBadge({ turns }: { turns: number }) {
 export function StatusBadgeRow({
     badges,
     showLabel = false,
+    hidden = false,
 }: {
     badges: StatusBadge[];
     showLabel?: boolean;
+    hidden?: boolean;
 }) {
+    const opacity = useRef(hidden ? 0 : 1);
+    const [fade, setFade] = useState(hidden ? 0 : 1);
+    useFrame((_, dt) => {
+        const target = hidden ? 0 : 1;
+        const next =
+            opacity.current +
+            (target - opacity.current) * Math.min(1, (dt * 1000) / BADGE_FADE_MS);
+        opacity.current = Math.abs(next - target) < 0.01 ? target : next;
+        if (Math.abs(opacity.current - fade) > 0.02 || opacity.current === target) {
+            setFade(opacity.current);
+        }
+    });
     if (!badges.length) return null;
     return (
-        <group userData={{ cueOpaque: true }}>
+        <group userData={{ cueOpaque: true }} visible={fade > 0.01}>
             {badges.map((badge, index) => (
                 <StatusBadgeChip
                     key={badge.id}
@@ -801,6 +826,7 @@ export function StatusBadgeRow({
                     index={index}
                     count={badges.length}
                     showLabel={showLabel}
+                    opacity={fade}
                 />
             ))}
         </group>

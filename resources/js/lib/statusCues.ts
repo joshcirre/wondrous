@@ -4,6 +4,14 @@ export const BADGE_CHIP_GAP = 0.025;
 export const BADGE_CHIP_MAX_W = 0.42;
 export const BADGE_ROW_MAX_W = 1;
 export const BADGE_ROW_Y = 1.6;
+export const HEALTH_BAR_Y = 1.37;
+export const HEALTH_BAR_H = 0.067;
+export const RESULT_CLEARANCE = 0.1;
+export const BADGE_CHIP_SURFACE = "#191f1a";
+export const BADGE_CHIP_LINE = "rgba(213, 204, 174, 0.28)";
+export const BADGE_COUNT_COLOR = "#eae7db";
+export const BADGE_FADE_MS = 140;
+export const LESSON_FADE_MS = 140;
 export const STATUS_OVERLAY_POINTER_EVENTS = "none" as const;
 
 export function badgeChipSize(count: number): { width: number; height: number } {
@@ -32,11 +40,11 @@ export function badgeWorldX(index: number, count: number): number {
 }
 
 export const STATUS_STYLE: Record<string, { glyph: string; color: string }> = {
-    rest: { glyph: "☾", color: "#7d8479" },
-    stun: { glyph: "✧", color: "#7d8479" },
-    root: { glyph: "⊥", color: "#c4a574" },
-    burn: { glyph: "✶", color: "#e07a42" },
-    ward: { glyph: "◈", color: "#9aa4a8" },
+    rest: { glyph: "☾", color: "#a6ad9f" },
+    stun: { glyph: "✧", color: "#a6ad9f" },
+    root: { glyph: "⊥", color: "#8f9a5b" },
+    burn: { glyph: "✶", color: "#e0894a" },
+    ward: { glyph: "◈", color: "#9fb3c8" },
 };
 
 const FAMILY_ORDER = ["rest", "stun", "root", "burn", "ward"] as const;
@@ -75,7 +83,26 @@ export type SpentCue = {
 const UNIT_SPENT_CODES = new Set(["recovering", "stunned", "acted"]);
 
 function styleFor(id: string): { glyph: string; color: string } {
-    return STATUS_STYLE[id] ?? { glyph: "•", color: "#7d8479" };
+    return STATUS_STYLE[id] ?? { glyph: "•", color: "#a6ad9f" };
+}
+
+export function resultAnchorY(hasBadges: boolean, badgeCount = 1): number {
+    if (hasBadges) {
+        const { height } = badgeChipSize(Math.max(1, badgeCount));
+        return BADGE_ROW_Y + height / 2 + RESULT_CLEARANCE;
+    }
+    return HEALTH_BAR_Y + HEALTH_BAR_H / 2 + RESULT_CLEARANCE;
+}
+
+export function resultHidesUnitBadges(
+    unitId: string,
+    floats: Array<{ unitId: string }>,
+): boolean {
+    return floats.some((item) => item.unitId === unitId);
+}
+
+export function lessonKey(lesson: { step: number; variant?: string | null }): string {
+    return `${lesson.step}:${lesson.variant ?? ""}`;
 }
 
 function fillLabel(

@@ -50,6 +50,10 @@ import {
 import Miniature from "./miniatures";
 import type { LegalOptions } from "../types";
 import {
+    HEALTH_BAR_H,
+    HEALTH_BAR_Y,
+    resultAnchorY,
+    resultHidesUnitBadges,
     spentFromServer,
     statusBadgeRow,
     type StatusFact,
@@ -233,7 +237,13 @@ function Pawn({
     ]);
     const target = new Vector3(unit.x - 3.5, 0.13, unit.y - 3.5);
     const motionRef = useContext(MotionRefContext);
+    const [hideBadges, setHideBadges] = useState(false);
     useFrame((_, dt) => {
+        const hide = resultHidesUnitBadges(
+            unit.id,
+            motionRef?.current.floats ?? [],
+        );
+        if (hide !== hideBadges) setHideBadges(hide);
         const pose = motionRef?.current.poses[unit.id];
         if (group.current && pose) {
             group.current.position.set(
@@ -359,9 +369,9 @@ function Pawn({
                         />
                     </group>
                     {!motionRef && <CombatEffect hp={unit.hp} mana={unit.mana} />}
-                    <Billboard visible={showMiniature} position={[0, 1.37, 0]}>
+                    <Billboard visible={showMiniature} position={[0, HEALTH_BAR_Y, 0]}>
                         <mesh>
-                            <planeGeometry args={[0.55, 0.067]} />
+                            <planeGeometry args={[0.55, HEALTH_BAR_H]} />
                             <meshBasicMaterial
                                 color="#192623"
                                 depthTest={false}
@@ -424,7 +434,11 @@ function Pawn({
                     </group>
                 )}
                 {badges.length > 0 && (
-                    <StatusBadgeRow badges={badges} showLabel={hovered} />
+                    <StatusBadgeRow
+                        badges={badges}
+                        showLabel={hovered}
+                        hidden={hideBadges}
+                    />
                 )}
                 {selected && actionStrip && (
                     <ActionStrip {...actionStrip} />
@@ -881,11 +895,13 @@ function MotionDriver({
     viewRef,
     onHud,
     viewerId,
+    units,
 }: {
     animation?: AnimationQueue | null;
     viewRef: MutableRefObject<QueueView>;
     onHud?: Props["onHud"];
     viewerId: number;
+    units: Unit[];
 }) {
     const [view, setView] = useState(viewRef.current);
     const hudKey = useRef("");
@@ -912,7 +928,18 @@ function MotionDriver({
         }
         camera.updateMatrixWorld();
         const floatScreens = next.floats.map((item) => {
-            const [wx, wy, wz] = tilePos(item.x, item.y, 1.55 + item.rise / 80);
+            const target = units.find((unit) => unit.id === item.unitId);
+            const badges = target
+                ? statusBadgeRow({
+                      recovery: target.recovery ?? 0,
+                      statuses: target.statuses ?? {},
+                  })
+                : [];
+            const [wx, wy, wz] = tilePos(
+                item.x,
+                item.y,
+                resultAnchorY(badges.length > 0, badges.length) + item.rise / 80,
+            );
             projected.set(wx, wy, wz).project(camera);
             return {
                 id: item.id,
@@ -962,18 +989,29 @@ function MotionDriver({
             {view.effects.map((effect) => (
                 <MotionEffectMesh key={effect.id} {...effect} />
             ))}
-            {htmlBoardFloats(view.floats).map((item) => (
-                <group key={item.id} position={tilePos(item.x, item.y, 0)}>
-                    <FloatingResultCard
-                        kind={item.kind}
-                        title={item.title}
-                        value={item.value}
-                        chance={item.chance}
-                        rise={item.rise}
-                        opacity={item.opacity}
-                    />
-                </group>
-            ))}
+            {htmlBoardFloats(view.floats).map((item) => {
+                const target = units.find((unit) => unit.id === item.unitId);
+                const badges = target
+                    ? statusBadgeRow({
+                          recovery: target.recovery ?? 0,
+                          statuses: target.statuses ?? {},
+                      })
+                    : [];
+                return (
+                    <group key={item.id} position={tilePos(item.x, item.y, 0)}>
+                        <FloatingResultCard
+                            kind={item.kind}
+                            title={item.title}
+                            value={item.value}
+                            chance={item.chance}
+                            rise={item.rise}
+                            opacity={item.opacity}
+                            hasBadges={badges.length > 0}
+                            badgeCount={badges.length}
+                        />
+                    </group>
+                );
+            })}
             {view.deathBanners.map((banner) => (
                 <group key={banner.unitId} position={tilePos(banner.x, banner.y, 0.12)}>
                     <DeathBannerMarker friendly={banner.ownerId === viewerId} />
@@ -1217,6 +1255,7 @@ function Scene({
                 viewRef={viewRef}
                 onHud={onHud}
                 viewerId={viewerId}
+                units={units}
             />
             {units.map((unit) => (
                 <Pawn

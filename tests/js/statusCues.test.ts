@@ -1,12 +1,24 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+    BADGE_CHIP_LINE,
+    BADGE_CHIP_SURFACE,
+    BADGE_COUNT_COLOR,
+    BADGE_FADE_MS,
     BADGE_GAP_PX,
     BADGE_ROW_MAX_W,
+    BADGE_ROW_Y,
     BADGE_SLOT_PX,
+    HEALTH_BAR_H,
+    HEALTH_BAR_Y,
+    LESSON_FADE_MS,
     STATUS_OVERLAY_POINTER_EVENTS,
+    STATUS_STYLE,
+    badgeChipSize,
     badgeRowWorldWidth,
     badgeWorldX,
+    resultAnchorY,
+    resultHidesUnitBadges,
     spentFromServer,
     statusBadgeRow,
 } from "../../resources/js/lib/statusCues.ts";
@@ -146,6 +158,66 @@ describe("statusBadgeRow", () => {
 
     it("never lets status overlays take a board pointer", () => {
         assert.equal(STATUS_OVERLAY_POINTER_EVENTS, "none");
+    });
+
+    it("uses the shared dark chip and puts colour only on the glyph", () => {
+        assert.equal(BADGE_CHIP_SURFACE, "#191f1a");
+        assert.equal(BADGE_COUNT_COLOR, "#eae7db");
+        assert.ok(BADGE_CHIP_LINE.length > 0);
+        assert.deepEqual(
+            Object.fromEntries(
+                Object.entries(STATUS_STYLE).map(([id, style]) => [id, style.color]),
+            ),
+            {
+                rest: "#a6ad9f",
+                stun: "#a6ad9f",
+                burn: "#e0894a",
+                ward: "#9fb3c8",
+                root: "#8f9a5b",
+            },
+        );
+        const row = statusBadgeRow({
+            recovery: 2,
+            statuses: { stun: 1, root: 2, burn: 2, ward: 2 },
+        });
+        for (const badge of row) {
+            assert.equal(badge.color, STATUS_STYLE[badge.id].color);
+            assert.notEqual(badge.color, "#edce91");
+            assert.notEqual(badge.color, "#d5b676");
+            assert.notEqual(badge.color, "#d99088");
+            assert.notEqual(badge.color, "#c4a574");
+        }
+    });
+});
+
+describe("result box vs badges", () => {
+    it("sits above the badge row when the target has badges", () => {
+        const count = 2;
+        const top = BADGE_ROW_Y + badgeChipSize(count).height / 2;
+        const y = resultAnchorY(true, count);
+        assert.ok(y >= top, `anchor ${y} covers badge top ${top}`);
+        assert.ok(y > resultAnchorY(false));
+    });
+
+    it("sits above the health bar when the target has no badges", () => {
+        const healthTop = HEALTH_BAR_Y + HEALTH_BAR_H / 2;
+        const y = resultAnchorY(false);
+        assert.ok(y >= healthTop, `anchor ${y} covers health top ${healthTop}`);
+        assert.ok(y < BADGE_ROW_Y, "empty-badge anchor should stay at the health bar, not the badge row");
+    });
+
+    it("hides only the target's badges while the result shows", () => {
+        const floats = [{ unitId: "target" }, { unitId: "target" }];
+        assert.equal(resultHidesUnitBadges("target", floats), true);
+        assert.equal(resultHidesUnitBadges("neighbour", floats), false);
+        assert.equal(resultHidesUnitBadges("target", []), false);
+        assert.equal(BADGE_FADE_MS, 140);
+    });
+});
+
+describe("lesson card motion", () => {
+    it("fades the card in 140 ms with no slide", () => {
+        assert.equal(LESSON_FADE_MS, 140);
     });
 });
 

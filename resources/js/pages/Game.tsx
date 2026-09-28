@@ -24,6 +24,8 @@ import {
     ClockIcon,
 } from "@heroicons/react/16/solid";
 import { Eyebrow, ErrorBanner } from "../components/Shell";
+import { LessonCard } from "../components/LessonCard";
+import { lessonKey } from "../lib/statusCues";
 import CharacterCard, { Portrait } from "../components/CharacterCard";
 import { api, errorMessage, realtime } from "../api";
 import type {
@@ -1202,34 +1204,6 @@ export default function Game() {
                                     <ArrowPathIcon /> Resolving…
                                 </div>
                             )}
-                            {game.lesson &&
-                                dismissedLesson !==
-                                    `${game.lesson.step}:${game.lesson.variant ?? ""}` && (
-                                    <aside
-                                        className="lesson-card unit-panel"
-                                        data-lesson-step={game.lesson.step}
-                                        data-lesson-variant={
-                                            game.lesson.variant ?? ""
-                                        }
-                                    >
-                                        <Eyebrow>
-                                            Lesson {game.lesson.step}
-                                        </Eyebrow>
-                                        <h3>{game.lesson.title}</h3>
-                                        <p>{game.lesson.body}</p>
-                                        <button
-                                            type="button"
-                                            className="text-link"
-                                            onClick={() =>
-                                                setDismissedLesson(
-                                                    `${game.lesson!.step}:${game.lesson!.variant ?? ""}`,
-                                                )
-                                            }
-                                        >
-                                            Dismiss
-                                        </button>
-                                    </aside>
-                                )}
                             {liveTurnBanner && (
                                 <div
                                     className="turn-banner-overlay"
@@ -1249,6 +1223,17 @@ export default function Game() {
                             )}
                         </div>
                         <aside className="unit-panel">
+                            {game.lesson &&
+                                dismissedLesson !== lessonKey(game.lesson) && (
+                                    <LessonCard
+                                        lesson={game.lesson}
+                                        onDismiss={() =>
+                                            setDismissedLesson(
+                                                lessonKey(game.lesson!),
+                                            )
+                                        }
+                                    />
+                                )}
                             {selected && character ? (
                                 <>
                                     <div className="unit-portrait selected">
