@@ -92,8 +92,9 @@ export default function Guide() {
                             Basic attacks roll against the attacker's accuracy,
                             then the defender's block chance. Blocking is
                             strongest from the front, half as strong from the
-                            side, and impossible from behind. Stunned champions
-                            cannot block. Rolls and outcomes appear in the
+                            side, and impossible from behind. A stunned
+                            champion cannot be activated or act, but still
+                            blocks normally. Rolls and outcomes appear in the
                             chronicle.
                         </p>
                         <p>
