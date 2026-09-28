@@ -51,6 +51,83 @@ export type Unit = {
     cooldown: number;
     statuses: Record<string, number>;
 };
+export type Tile = [number, number];
+export type Facing = "north" | "east" | "south" | "west";
+export type AttackSide = "front" | "side" | "rear";
+export type AttackOutcome = "hit" | "miss" | "block";
+export type AttackRoll = {
+    accuracy: number;
+    hit_roll: number;
+    block_chance: number;
+    block_roll: number | null;
+};
+export type MoveEvent = {
+    type: "move";
+    unit_id: string;
+    owner_id: number;
+    from: Tile;
+    to: Tile;
+    path: Tile[];
+};
+export type FaceEvent = {
+    type: "face";
+    unit_id: string;
+    owner_id: number;
+    from: Facing;
+    to: Facing;
+};
+export type AttackEvent = {
+    type: "attack";
+    unit_id: string;
+    owner_id: number;
+    target_id: string;
+    target_owner_id: number;
+    side: AttackSide;
+    roll: AttackRoll;
+    outcome: AttackOutcome;
+    damage: number;
+};
+export type SkillEvent = {
+    type: "skill";
+    unit_id: string;
+    owner_id: number;
+    skill: string;
+    target_ids: string[];
+    amounts: Record<string, number>;
+    statuses: Record<string, Record<string, number>>;
+};
+export type StatusTickEvent = {
+    type: "status_tick";
+    unit_id: string;
+    owner_id: number;
+    status: string;
+    amount?: number;
+};
+export type DeathEvent = {
+    type: "death";
+    unit_id: string;
+    owner_id: number;
+    by: number;
+};
+export type TurnStartEvent = {
+    type: "turn_start";
+    player_id: number;
+    turn_number: number;
+};
+export type GameOverEvent = {
+    type: "game_over";
+    winner_id: number | null;
+};
+export type GameEvent =
+    | MoveEvent
+    | FaceEvent
+    | AttackEvent
+    | SkillEvent
+    | StatusTickEvent
+    | DeathEvent
+    | TurnStartEvent
+    | GameOverEvent;
+export type GameEventFrame = GameEvent & { version: number; index: number };
 export type State = {
     phase: "lobby" | "draft" | "deployment" | "battle" | "finished";
     players: { id: number; name: string }[];
@@ -69,6 +146,7 @@ export type State = {
     finish_reason?: string;
     expired_player_ids?: number[];
     log: { turn: number; text: string }[];
+    events?: GameEvent[];
     reward_candidates: Record<string, string[]>;
     rewards?: Record<string, { currency: number; rating_delta: number }>;
 };

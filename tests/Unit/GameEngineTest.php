@@ -293,4 +293,138 @@ class GameEngineTest extends TestCase
             self::assertCount(12, $s['pool'][2]);
         }
     }
+
+    public function test_move_emits_the_true_orthogonal_path_around_a_blocker(): void
+    {
+        $s = $this->duel('rogue');
+        $s = $this->engine()->apply($s, 1, 'move', ['unit_id' => '1-rogue', 'x' => 3, 'y' => 2]);
+        $move = $this->onlyEvent($s, 'move');
+        self::assertSame('1-rogue', $move['unit_id']);
+        self::assertSame(1, $move['owner_id']);
+        self::assertSame([3, 4], $move['from']);
+        self::assertSame([3, 2], $move['to']);
+        self::assertSame([[3, 4], [4, 4], [4, 3], [4, 2], [3, 2]], $move['path']);
+        self::assertNotSame([[3, 4], [3, 3], [3, 2]], $move['path']);
+    }
+
+    public function test_attack_emits_hit_miss_and_block_with_the_engine_rolls(): void
+    {
+        $s = $this->duel();
+        $hit = (new GameEngine($this->rolls([10, 99])))->apply($s, 1, 'attack', ['unit_id' => '1-warden', 'target_id' => '2-warden']);
+        $miss = (new GameEngine($this->rolls([100])))->apply($s, 1, 'attack', ['unit_id' => '1-warden', 'target_id' => '2-warden']);
+        $block = (new GameEngine($this->rolls([10, 1])))->apply($s, 1, 'attack', ['unit_id' => '1-warden', 'target_id' => '2-warden']);
+
+        $hitEvent = $this->onlyEvent($hit, 'attack');
+        self::assertSame([
+            'type' => 'attack',
+            'unit_id' => '1-warden',
+            'owner_id' => 1,
+            'target_id' => '2-warden',
+            'target_owner_id' => 2,
+            'side' => 'front',
+            'roll' => ['accuracy' => 95, 'hit_roll' => 10, 'block_chance' => 40, 'block_roll' => 99],
+            'outcome' => 'hit',
+            'damage' => 14,
+        ], $hitEvent);
+        self::assertSame(116, $hit['units'][1]['hp']);
+
+        $missEvent = $this->onlyEvent($miss, 'attack');
+        self::assertSame('miss', $missEvent['outcome']);
+        self::assertSame(['accuracy' => 95, 'hit_roll' => 100, 'block_chance' => 40, 'block_roll' => null], $missEvent['roll']);
+        self::assertSame(0, $missEvent['damage']);
+        self::assertSame(130, $miss['units'][1]['hp']);
+
+        $blockEvent = $this->onlyEvent($block, 'attack');
+        self::assertSame('block', $blockEvent['outcome']);
+        self::assertSame(['accuracy' => 95, 'hit_roll' => 10, 'block_chance' => 40, 'block_roll' => 1], $blockEvent['roll']);
+        self::assertSame(0, $blockEvent['damage']);
+        self::assertSame('front', $blockEvent['side']);
+        self::assertSame(130, $block['units'][1]['hp']);
+    }
+
+    public function test_skill_emits_resolved_amounts_and_statuses(): void
+    {
+        $s = $this->engine()->apply($this->duel('knight'), 1, 'skill', ['unit_id' => '1-knight', 'target_id' => '2-warden']);
+        $skill = $this->onlyEvent($s, 'skill');
+        self::assertSame('1-knight', $skill['unit_id']);
+        self::assertSame(1, $skill['owner_id']);
+        self::assertSame('Shield Bash', $skill['skill']);
+        self::assertSame(['2-warden'], $skill['target_ids']);
+        self::assertSame(['2-warden' => 13], $skill['amounts']);
+        self::assertSame(['2-warden' => ['stun' => 1]], $skill['statuses']);
+        self::assertSame(117, $s['units'][1]['hp']);
+    }
+
+    public function test_kill_emits_death_and_game_over(): void
+    {
+        $s = $this->duel('arcanist');
+        $s['units'][1]['hp'] = 1;
+        $s = $this->engine()->apply($s, 1, 'skill', ['unit_id' => '1-arcanist', 'target_id' => '2-warden']);
+        $death = $this->onlyEvent($s, 'death');
+        self::assertSame('2-warden', $death['unit_id']);
+        self::assertSame(2, $death['owner_id']);
+        self::assertSame(1, $death['by']);
+        $over = $this->onlyEvent($s, 'game_over');
+        self::assertSame(1, $over['winner_id']);
+        self::assertSame('finished', $s['phase']);
+    }
+
+    public function test_burn_tick_emits_status_tick(): void
+    {
+        $s = $this->duel('pyromancer', 'herald');
+        $s['units'][1]['hp'] = 3;
+        $s['units'][1]['statuses']['burn'] = 1;
+        $s['units'][1]['burn_source'] = 1;
+        $s['units'][0]['mana'] = 0;
+        $s['turn_player_id'] = 2;
+        $s = $this->engine()->apply($s, 2, 'end_turn');
+        $ticks = array_values(array_filter($s['events'], fn ($e) => $e['type'] === 'status_tick'));
+        self::assertContains([
+            'type' => 'status_tick',
+            'unit_id' => '2-herald',
+            'owner_id' => 2,
+            'status' => 'burn',
+            'amount' => 8,
+        ], $ticks);
+        self::assertSame('death', $s['events'][array_search('death', array_column($s['events'], 'type'), true)]['type']);
+        self::assertSame(0, $s['units'][1]['hp']);
+    }
+
+    public function test_legacy_state_without_events_still_applies(): void
+    {
+        $s = $this->duel();
+        unset($s['events']);
+        $s = $this->engine()->apply($s, 1, 'face', ['unit_id' => '1-warden', 'facing' => 'west']);
+        self::assertSame('west', $s['units'][0]['facing']);
+        $face = $this->onlyEvent($s, 'face');
+        self::assertSame('north', $face['from']);
+        self::assertSame('west', $face['to']);
+        self::assertSame(1, $face['owner_id']);
+    }
+
+    public function test_ready_and_end_turn_emit_turn_start(): void
+    {
+        $e = $this->engine();
+        $s = $e->apply($this->deployment(), 1, 'ready');
+        $s = $e->apply($s, 2, 'ready');
+        $start = $this->onlyEvent($s, 'turn_start');
+        self::assertSame(['type' => 'turn_start', 'player_id' => 1, 'turn_number' => 1], $start);
+        $s = $e->apply($s, 1, 'end_turn');
+        self::assertSame(['type' => 'turn_start', 'player_id' => 2, 'turn_number' => 2], $this->onlyEvent($s, 'turn_start'));
+    }
+
+    private function onlyEvent(array $s, string $type): array
+    {
+        $matches = array_values(array_filter($s['events'] ?? [], fn ($e) => ($e['type'] ?? null) === $type));
+        self::assertCount(1, $matches, 'Expected one '.$type.' event, got '.json_encode($s['events'] ?? []));
+
+        return $matches[0];
+    }
+
+    private function rolls(array $sequence): \Closure
+    {
+        return function (int $min, int $max) use (&$sequence) {
+            return $sequence ? array_shift($sequence) : $min;
+        };
+    }
 }

@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class Game extends Model
 {
+    public const EVENTS_PAGE = 100;
+
     public $incrementing = false;
 
     protected $keyType = 'string';
@@ -33,6 +35,9 @@ class Game extends Model
                 $state[$key] = [$id => $state[$key][$id] ?? []];
             }
         }
+        if (isset($state['events'])) {
+            $state['events'] = self::visibleEvents($state['events'], $id, $this->state);
+        }
         if ($state['phase'] === 'deployment') {
             $state['units'] = array_values(array_filter($state['units'], fn ($u) => $u['owner_id'] === $id));
         }
@@ -43,6 +48,40 @@ class Game extends Model
         }
 
         return ['id' => $this->id, 'code' => $this->code, 'name' => $this->name, 'ranked' => $this->ranked, 'mode' => $this->mode ?? 'multiplayer', 'time_control' => $this->time_control ?? 'live', 'reduced_board' => (bool) $this->reduced_board, 'turn_due_at' => $this->turn_due_at?->toISOString(), 'version' => $this->version, 'state' => $state, 'options' => $options, 'created_at' => $this->created_at->toISOString(), 'reward_claimed' => in_array($id, $this->claims ?? [])];
+    }
+
+    /** Drop events that would reveal hidden formation or private deck data. */
+    public static function visibleEvents(array $events, int $viewerId, array $state): array
+    {
+        $hiddenOwners = [];
+        if (($state['phase'] ?? '') === 'deployment') {
+            foreach ($state['units'] ?? [] as $unit) {
+                if (($unit['owner_id'] ?? null) !== $viewerId) {
+                    $hiddenOwners[$unit['owner_id']] = true;
+                }
+            }
+            foreach ($state['players'] ?? [] as $player) {
+                if (($player['id'] ?? null) !== $viewerId) {
+                    $hiddenOwners[$player['id']] = true;
+                }
+            }
+        }
+
+        return array_values(array_filter($events, function ($event) use ($hiddenOwners) {
+            if (! is_array($event)) {
+                return false;
+            }
+            foreach (['offers', 'pool', 'loadouts', 'reward_candidates'] as $private) {
+                unset($event[$private]);
+            }
+            foreach (['owner_id', 'target_owner_id'] as $key) {
+                if (isset($event[$key], $hiddenOwners[$event[$key]])) {
+                    return false;
+                }
+            }
+
+            return true;
+        }));
     }
 
     public static function replayState(array $state): array
