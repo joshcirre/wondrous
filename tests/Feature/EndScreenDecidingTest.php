@@ -7,6 +7,7 @@ use App\Game\GameEngine;
 use App\Models\Game;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 class EndScreenDecidingTest extends TestCase
@@ -38,8 +39,10 @@ class EndScreenDecidingTest extends TestCase
 
         $this->actingAs($guest)->get('/games/'.$game->code)
             ->assertOk()
-            ->assertSee('What decided it', false)
-            ->assertSee('Rowan resigned.', false);
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Game')
+                ->where('game.state.deciding.rule', 'resign')
+                ->where('game.state.deciding.text', 'Rowan resigned.'));
     }
 
     public function test_practice_replay_names_the_computer_on_null_actor_frames(): void
