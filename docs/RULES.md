@@ -22,7 +22,7 @@ Skills always hit valid targets and bypass block. Armor still applies unless the
 
 Recovery and cooldown are separate. An attack or skill makes a unit skip its next owner turn. Arcane Lance skips the next two owner turns. Movement or facing alone does not cause recovery. Cooldowns indicate subsequent owner turns during which the skill cannot be used. Internally both are assigned one extra counter on activation, because counters tick at the end of the owner's current turn. Thus a freshly acting unit may show recovery 2; after ending that turn it shows 1, remains unavailable next owner turn, and becomes available the following owner turn.
 
-Statuses count down at the end of their owner's turn. Stun prevents activation for one enemy turn. Root prevents movement for two enemy turns but allows attacking, casting, and facing. Burn deals eight damage at the end of each of the next two enemy turns. Ward adds twelve armor while active (two owner end-turn ticks). Druid Renewal removes burn, root, and stun; it cannot revive defeated characters. Healing and mana restoration are capped.
+Statuses count down at the end of their owner's turn. Stun prevents activation for one enemy turn; stunned characters still block normally. Root prevents movement for two enemy turns but allows attacking, casting, and facing. Burn deals eight damage at the end of each of the next two enemy turns. Ward adds twelve armor while active (two owner end-turn ticks). Druid Renewal removes burn, root, and stun; it cannot revive defeated characters. Healing and mana restoration are capped.
 
 ## Characters
 

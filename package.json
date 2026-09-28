@@ -5,7 +5,8 @@
   "scripts": {
     "build": "vite build",
     "dev": "vite",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:js": "node --experimental-strip-types --test tests/js/boardClick.test.ts"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.0.0",

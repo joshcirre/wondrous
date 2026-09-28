@@ -150,6 +150,43 @@ export type State = {
     reward_candidates: Record<string, string[]>;
     rewards?: Record<string, { currency: number; rating_delta: number }>;
 };
+export type LegalMove = {
+    x: number;
+    y: number;
+    path: [number, number][];
+};
+export type LegalAttack = {
+    target_id: string;
+    hit_chance: number;
+    block_side: "front" | "side" | "rear";
+    block_chance: number;
+    damage_on_hit: number;
+    land_chance: number;
+};
+export type LegalSkillTarget = {
+    target_id: string;
+    effect: string;
+    amount: number;
+    always_hits: true;
+};
+export type LegalSkill = {
+    usable: boolean;
+    reason: string | null;
+    cost: number;
+    targets: LegalSkillTarget[];
+};
+export type UnitOptions = {
+    can_activate: boolean;
+    reason: string | null;
+    moves: LegalMove[];
+    attack: LegalAttack[];
+    skill: LegalSkill;
+    facing: Array<"north" | "east" | "south" | "west">;
+};
+export type LegalOptions = {
+    version: number;
+    units: Record<string, UnitOptions>;
+};
 export type Game = {
     id: string;
     code: string;
@@ -160,6 +197,7 @@ export type Game = {
     turn_due_at: string | null;
     version: number;
     state: State;
+    options: LegalOptions | null;
     created_at: string;
     reward_claimed?: boolean;
 };

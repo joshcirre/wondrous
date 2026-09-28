@@ -173,11 +173,30 @@ final class GameEngine
         return $s;
     }
 
+    /** Legal battle actions for the turn player, dry-run through apply() so the engine stays the only rules source. */
+    public function options(array $s, int $viewerId): ?array
+    {
+        if (($s['phase'] ?? null) !== 'battle' || ($s['turn_player_id'] ?? null) !== $viewerId) {
+            return null;
+        }
+        $oracle = new self(fn (int $min, int $max) => $max === 100 ? 50 : $min);
+        $units = [];
+        foreach ($s['units'] as $unit) {
+            if ($unit['owner_id'] !== $viewerId || $unit['hp'] <= 0) {
+                continue;
+            }
+            $units[$unit['id']] = $this->describeUnit($oracle, $s, $viewerId, $unit);
+        }
+
+        return ['version' => (int) ($s['version'] ?? 0), 'units' => $units];
+    }
+
     private function cast(array &$s, int $i, int $j): void
     {
         $id = $s['units'][$i]['character_id'];
         $c = CharacterCatalog::get($id);
         $this->log($s, $c['name'].' used '.$c['skill']['name'].'.');
+        $amount = $this->skillAmount($s, $i, $j);
         $targetIds = [];
         $amounts = [];
         $statuses = [];
@@ -188,13 +207,13 @@ final class GameEngine
                 break;
             case 'cleric':
                 $before = $s['units'][$j]['hp'];
-                $this->heal($s, $j, 38);
+                $this->heal($s, $j, $amount);
                 $targetIds[] = $s['units'][$j]['id'];
                 $amounts[$s['units'][$j]['id']] = $s['units'][$j]['hp'] - $before;
                 break;
             case 'druid':
                 $before = $s['units'][$j]['hp'];
-                $this->heal($s, $j, 25);
+                $this->heal($s, $j, $amount);
                 foreach (['burn', 'root', 'stun'] as $status) {
                     unset($s['units'][$j]['statuses'][$status]);
                 }
@@ -205,16 +224,13 @@ final class GameEngine
                 foreach ($s['units'] as $k => $u) {
                     if ($u['owner_id'] === $s['units'][$i]['owner_id'] && $u['hp'] > 0) {
                         $before = $s['units'][$k]['hp'];
-                        $this->heal($s, $k, 12);
-                        $s['units'][$k]['mana'] = min($u['max_mana'], $s['units'][$k]['mana'] + 12);
+                        $this->heal($s, $k, $amount);
+                        $s['units'][$k]['mana'] = min($u['max_mana'], $s['units'][$k]['mana'] + $amount);
                         $targetIds[] = $u['id'];
                         $amounts[$u['id']] = $s['units'][$k]['hp'] - $before;
                     }
                 } break;
             default:
-                $amount = match ($id) {
-                    'ranger' => 34,'knight' => 22,'arcanist' => 39,'rogue' => $this->blockFactor($s['units'][$i], $s['units'][$j]) === 0.0 ? 52 : 32,'pikeman' => 26,'pyromancer' => 28,'frostweaver' => 23,'revenant' => 31
-                };
                 $dealt = $this->damage($s, $i, $j, $amount, in_array($id, ['ranger', 'arcanist', 'rogue', 'revenant'], true), false);
                 $targetIds[] = $s['units'][$j]['id'];
                 $amounts[$s['units'][$j]['id']] = $dealt;
@@ -270,6 +286,7 @@ final class GameEngine
 
                 return 0;
             }
+            $chance = $this->blockChance($s, $i, $j);
             $block = ($this->random)(1, 100);
             $this->log($s, $d['name'].' block roll '.$block.' / '.$chance.'.');
             if ($block <= $chance) {
@@ -283,14 +300,7 @@ final class GameEngine
                 return 0;
             }
         }
-        $armor = $d['armor'] + (($t['statuses']['ward'] ?? 0) > 0 ? 12 : 0);
-        foreach ($s['units'] as $ally) {
-            if ($ally['character_id'] === 'herald' && $ally['hp'] > 0 && $ally['owner_id'] === $t['owner_id'] && $this->distance($ally, $t) <= 2) {
-                $armor += 4;
-                break;
-            }
-        }
-        $damage = min($t['hp'], max(1, $amount - ($pierce ? 0 : $armor)));
+        $damage = min($t['hp'], max(1, $amount - ($pierce ? 0 : $this->armorFor($s, $j))));
         $s['units'][$j]['hp'] -= $damage;
         $this->log($s, $c['name'].' dealt '.$damage.' damage to '.$d['name'].'.');
         if ($roll) {
@@ -449,37 +459,7 @@ final class GameEngine
 
     private function reachable(array $s, array $u, int $x, int $y, int $range): bool
     {
-        if ($x === $u['x'] && $y === $u['y']) {
-            return false;
-        }
-        $blocked = [];
-        foreach ($s['units'] as $v) {
-            if ($v['hp'] > 0 && $v['id'] !== $u['id']) {
-                $blocked[$v['x'].','.$v['y']] = true;
-            }
-        }
-        $queue = [[$u['x'], $u['y'], 0]];
-        $seen = [$u['x'].','.$u['y'] => true];
-        for ($i = 0; $i < count($queue); $i++) {
-            [$cx,$cy,$d] = $queue[$i];
-            if ($cx === $x && $cy === $y) {
-                return true;
-            } if ($d === $range) {
-                continue;
-            }
-            foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx,$dy]) {
-                $nx = $cx + $dx;
-                $ny = $cy + $dy;
-                $key = $nx.','.$ny;
-                if ($nx < 0 || $nx > 7 || $ny < 0 || $ny > 7 || isset($blocked[$key]) || isset($seen[$key])) {
-                    continue;
-                }
-                $seen[$key] = true;
-                $queue[] = [$nx, $ny, $d + 1];
-            }
-        }
-
-        return false;
+        return $this->path($s, $u, $x, $y, $range) !== null;
     }
 
     /** @return list<array{0:int,1:int}>|null */
@@ -527,6 +507,163 @@ final class GameEngine
         }
 
         return null;
+    }
+
+    private function describeUnit(self $oracle, array $s, int $viewerId, array $unit): array
+    {
+        $catalog = CharacterCatalog::get($unit['character_id']);
+        $activation = $this->probe($oracle, $s, $viewerId, 'face', ['unit_id' => $unit['id'], 'facing' => $unit['facing']]);
+        $entry = [
+            'can_activate' => $activation === null,
+            'reason' => $activation,
+            'moves' => [],
+            'attack' => [],
+            'skill' => ['usable' => false, 'reason' => $activation, 'cost' => $catalog['skill']['cost'], 'targets' => []],
+            'facing' => [],
+        ];
+        if ($activation !== null) {
+            return $entry;
+        }
+        $entry['facing'] = ['north', 'east', 'south', 'west'];
+        for ($x = 0; $x < 8; $x++) {
+            for ($y = 0; $y < 8; $y++) {
+                if ($this->probe($oracle, $s, $viewerId, 'move', ['unit_id' => $unit['id'], 'x' => $x, 'y' => $y]) !== null) {
+                    continue;
+                }
+                $entry['moves'][] = ['x' => $x, 'y' => $y, 'path' => $this->path($s, $unit, $x, $y, $catalog['move'])];
+            }
+        }
+        foreach ($s['units'] as $target) {
+            if ($target['hp'] <= 0 || $this->probe($oracle, $s, $viewerId, 'attack', ['unit_id' => $unit['id'], 'target_id' => $target['id']]) !== null) {
+                continue;
+            }
+            $entry['attack'][] = $this->attackPreview($s, $unit, $target);
+        }
+        $skillReason = null;
+        foreach ($this->skillCandidates($s, $unit, $catalog['skill']['target']) as $target) {
+            $error = $this->probe($oracle, $s, $viewerId, 'skill', ['unit_id' => $unit['id'], 'target_id' => $target['id']]);
+            if ($error !== null) {
+                $skillReason ??= $error;
+
+                continue;
+            }
+            $entry['skill']['targets'][] = $this->skillPreview($s, $unit, $target);
+        }
+        if ($entry['skill']['targets']) {
+            $entry['skill']['usable'] = true;
+            $entry['skill']['reason'] = null;
+        } else {
+            $entry['skill']['reason'] = $skillReason;
+        }
+
+        return $entry;
+    }
+
+    private function probe(self $oracle, array $s, int $actorId, string $type, array $payload): ?string
+    {
+        try {
+            $oracle->apply($s, $actorId, $type, $payload);
+
+            return null;
+        } catch (GameRuleException $e) {
+            return $e->getMessage();
+        }
+    }
+
+    private function attackPreview(array $s, array $attacker, array $defender): array
+    {
+        [$i, $j] = [$this->unitIndex($s, $attacker['id']), $this->unitIndex($s, $defender['id'])];
+        $hit = CharacterCatalog::get($attacker['character_id'])['accuracy'];
+        $block = $this->blockChance($s, $i, $j);
+        $factor = $this->blockFactor($attacker, $defender);
+
+        return [
+            'target_id' => $defender['id'],
+            'hit_chance' => $hit,
+            'block_side' => $factor === 1.0 ? 'front' : ($factor === 0.0 ? 'rear' : 'side'),
+            'block_chance' => $block,
+            'damage_on_hit' => min($defender['hp'], max(1, CharacterCatalog::get($attacker['character_id'])['attack'] - $this->armorFor($s, $j))),
+            'land_chance' => (int) round($hit * (1 - $block / 100)),
+        ];
+    }
+
+    private function skillPreview(array $s, array $unit, array $target): array
+    {
+        $i = $this->unitIndex($s, $unit['id']);
+        $j = $this->unitIndex($s, $target['id']);
+
+        return [
+            'target_id' => $target['id'],
+            'effect' => match ($unit['character_id']) {
+                'warden' => 'ward',
+                'cleric', 'druid', 'herald' => 'heal',
+                default => 'damage',
+            },
+            'amount' => $this->skillAmount($s, $i, $j),
+            'always_hits' => true,
+        ];
+    }
+
+    private function skillCandidates(array $s, array $unit, string $targetType): array
+    {
+        return array_values(array_filter($s['units'], fn ($target) => $target['hp'] > 0 && match ($targetType) {
+            'enemy' => $target['owner_id'] !== $unit['owner_id'],
+            'ally' => $target['owner_id'] === $unit['owner_id'],
+            'self' => $target['id'] === $unit['id'],
+            default => false,
+        }));
+    }
+
+    private function unitIndex(array $s, string $id): int
+    {
+        foreach ($s['units'] as $i => $unit) {
+            if ($unit['id'] === $id) {
+                return $i;
+            }
+        }
+
+        throw new GameRuleException('Character not found.');
+    }
+
+    private function blockChance(array $s, int $i, int $j): int
+    {
+        $defender = CharacterCatalog::get($s['units'][$j]['character_id']);
+
+        return (int) floor($defender['block'] * $this->blockFactor($s['units'][$i], $s['units'][$j]));
+    }
+
+    private function armorFor(array $s, int $j): int
+    {
+        $target = $s['units'][$j];
+        $armor = CharacterCatalog::get($target['character_id'])['armor'] + (($target['statuses']['ward'] ?? 0) > 0 ? 12 : 0);
+        foreach ($s['units'] as $ally) {
+            if ($ally['character_id'] === 'herald' && $ally['hp'] > 0 && $ally['owner_id'] === $target['owner_id'] && $this->distance($ally, $target) <= 2) {
+                $armor += 4;
+                break;
+            }
+        }
+
+        return $armor;
+    }
+
+    private function skillAmount(array $s, int $i, int $j): int
+    {
+        $id = $s['units'][$i]['character_id'];
+
+        return match ($id) {
+            'ranger' => 34,
+            'knight' => 22,
+            'arcanist' => 39,
+            'rogue' => $this->blockFactor($s['units'][$i], $s['units'][$j]) === 0.0 ? 52 : 32,
+            'pikeman' => 26,
+            'pyromancer' => 28,
+            'frostweaver' => 23,
+            'revenant' => 31,
+            'cleric' => 38,
+            'druid' => 25,
+            'herald' => 12,
+            'warden' => 12,
+        };
     }
 
     private function emit(array &$s, string $type, array $payload = []): void

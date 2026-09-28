@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Game\GameEngine;
 use Illuminate\Database\Eloquent\Model;
 
 class Game extends Model
@@ -39,8 +40,12 @@ class Game extends Model
         if ($state['phase'] === 'deployment') {
             $state['units'] = array_values(array_filter($state['units'], fn ($u) => $u['owner_id'] === $id));
         }
+        $options = (new GameEngine)->options($this->state, $id);
+        if (is_array($options)) {
+            $options['version'] = $this->version;
+        }
 
-        return ['id' => $this->id, 'code' => $this->code, 'name' => $this->name, 'ranked' => $this->ranked, 'mode' => $this->mode ?? 'multiplayer', 'time_control' => $this->time_control ?? 'live', 'turn_due_at' => $this->turn_due_at?->toISOString(), 'version' => $this->version, 'state' => $state, 'created_at' => $this->created_at->toISOString(), 'reward_claimed' => in_array($id, $this->claims ?? [])];
+        return ['id' => $this->id, 'code' => $this->code, 'name' => $this->name, 'ranked' => $this->ranked, 'mode' => $this->mode ?? 'multiplayer', 'time_control' => $this->time_control ?? 'live', 'turn_due_at' => $this->turn_due_at?->toISOString(), 'version' => $this->version, 'state' => $state, 'options' => $options, 'created_at' => $this->created_at->toISOString(), 'reward_claimed' => in_array($id, $this->claims ?? [])];
     }
 
     /** Drop events that would reveal hidden formation or private deck data. */
