@@ -24,14 +24,16 @@ class GameController extends Controller
         $active = $activeGames->first(fn ($g) => $g->mode === 'multiplayer' && $g->time_control === 'live');
         $activeGames = $activeGames->map(fn ($g) => ['code' => $g->code, 'name' => $g->name, 'mode' => $g->mode, 'time_control' => $g->time_control, 'phase' => $g->phase, 'turn_player_id' => $g->state['turn_player_id'], 'turn_due_at' => $g->turn_due_at?->toISOString(), 'ready' => $g->state['ready'], 'host_id' => $g->host_id, 'players' => $g->state['players']]);
         $recent = Game::where(fn ($q) => $q->where('host_id', $id)->orWhere('guest_id', $id))->where('phase', 'finished')->latest('updated_at')->limit(5)->get()->map(fn ($g) => ['code' => $g->code, 'name' => $g->name, 'mode' => $g->mode, 'won' => $g->state['winner_id'] === $id, 'ranked' => $g->ranked, 'draw' => $g->state['winner_id'] === null, 'time_control' => $g->time_control]);
+        $firstMatchAvailable = ! Game::where(fn ($q) => $q->where('host_id', $id)->orWhere('guest_id', $id))->where('phase', 'finished')->exists();
 
-        return Inertia::render('Lobby', ['catalog' => CharacterCatalog::all(), 'games' => $games, 'active' => $active?->code, 'active_games' => $activeGames, 'recent' => $recent]);
+        return Inertia::render('Lobby', ['catalog' => CharacterCatalog::all(), 'games' => $games, 'active' => $active?->code, 'active_games' => $activeGames, 'recent' => $recent, 'first_match_available' => $firstMatchAvailable]);
     }
 
     public function create(Request $r, MatchService $matches)
     {
-        $v = $r->validate(['name' => 'required|string|max:60', 'ranked' => 'required|boolean', 'time_control' => 'sometimes|required|in:live,correspondence', 'mode' => 'sometimes|required|in:multiplayer,practice', 'reduced_board' => 'sometimes|boolean']);
-        $g = $matches->create($r->user(), $v['name'], $v['ranked'], $v['time_control'] ?? 'live', $v['mode'] ?? 'multiplayer', $v['reduced_board'] ?? true);
+        $v = $r->validate(['name' => 'required|string|max:60', 'ranked' => 'required|boolean', 'time_control' => 'sometimes|required|in:live,correspondence', 'mode' => 'sometimes|required|in:multiplayer,practice', 'reduced_board' => 'sometimes|boolean', 'scenario' => 'sometimes|nullable|in:first_match']);
+        abort_if(($v['scenario'] ?? null) === 'first_match' && ($v['mode'] ?? 'multiplayer') !== 'practice', 422, 'First match is a practice scenario.');
+        $g = $matches->create($r->user(), $v['name'], $v['ranked'], $v['time_control'] ?? 'live', $v['mode'] ?? 'multiplayer', $v['reduced_board'] ?? true, $v['scenario'] ?? null);
 
         return response()->json(['code' => $g->code], 201);
     }

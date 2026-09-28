@@ -2,6 +2,8 @@
 
 namespace App\Game;
 
+use App\Game\Scenarios\FirstMatch;
+
 /** A bounded tactical search. Simulations never consume the real game's random rolls. */
 final class ComputerOpponent
 {
@@ -48,6 +50,12 @@ final class ComputerOpponent
         }
         if ($state['acted']) {
             return ['type' => 'end_turn', 'payload' => []];
+        }
+        if (($state['scenario'] ?? null) === FirstMatch::KEY) {
+            $scripted = $this->chooseFirstMatch($state);
+            if ($scripted !== false) {
+                return $scripted;
+            }
         }
 
         $best = ['type' => 'end_turn', 'payload' => []];
@@ -111,6 +119,74 @@ final class ComputerOpponent
         }
 
         return $best;
+    }
+
+    /** @return array{type: string, payload: array}|false */
+    private function chooseFirstMatch(array $state): array|false
+    {
+        $turn = (int) ($state['turn_number'] ?? 0);
+        if ($turn < 2 || $turn > 6 || $turn % 2 !== 0) {
+            return false;
+        }
+        $steps = FirstMatch::computerScript()[intdiv($turn, 2)] ?? [];
+        foreach ($steps as $step) {
+            $command = $this->resolveScript($state, $step);
+            if (! $command) {
+                return false;
+            }
+            if ($this->scriptSatisfied($state, $command)) {
+                continue;
+            }
+            if ($this->simulate($state, $command)) {
+                return $command;
+            }
+
+            return false;
+        }
+
+        return ['type' => 'end_turn', 'payload' => []];
+    }
+
+    /**
+     * @param  array{type: string, character_id: string, x?: int, y?: int, facing?: string}  $step
+     * @return array{type: string, payload: array}|null
+     */
+    private function resolveScript(array $state, array $step): ?array
+    {
+        $unit = collect($state['units'])->first(
+            fn ($candidate) => $candidate['owner_id'] === self::ID
+                && $candidate['character_id'] === ($step['character_id'] ?? null)
+                && $candidate['hp'] > 0
+        );
+        if (! $unit) {
+            return null;
+        }
+        $payload = ['unit_id' => $unit['id']];
+        if (($step['type'] ?? '') === 'move') {
+            $payload['x'] = $step['x'] ?? null;
+            $payload['y'] = $step['y'] ?? null;
+        }
+        if (($step['type'] ?? '') === 'face') {
+            $payload['facing'] = $step['facing'] ?? null;
+        }
+
+        return ['type' => $step['type'], 'payload' => $payload];
+    }
+
+    private function scriptSatisfied(array $state, array $command): bool
+    {
+        $unit = collect($state['units'])->firstWhere('id', $command['payload']['unit_id'] ?? null);
+        if (! $unit) {
+            return false;
+        }
+        if ($command['type'] === 'move') {
+            return $unit['x'] === ($command['payload']['x'] ?? null) && $unit['y'] === ($command['payload']['y'] ?? null);
+        }
+        if ($command['type'] === 'face') {
+            return $unit['facing'] === ($command['payload']['facing'] ?? null);
+        }
+
+        return false;
     }
 
     private function simulate(array $state, array $command): ?array

@@ -149,6 +149,15 @@ export type State = {
     events?: GameEvent[];
     reward_candidates: Record<string, string[]>;
     rewards?: Record<string, { currency: number; rating_delta: number }>;
+    scenario?: string;
+    lesson_step?: number | null;
+    lesson_variant?: string | null;
+};
+export type Lesson = {
+    step: number;
+    variant: string | null;
+    title: string;
+    body: string;
 };
 export type LegalMove = {
     x: number;
@@ -208,6 +217,7 @@ export type Game = {
     version: number;
     state: State;
     options: LegalOptions | null;
+    lesson?: Lesson | null;
     created_at: string;
     reward_claimed?: boolean;
 };
