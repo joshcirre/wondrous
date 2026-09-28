@@ -502,8 +502,6 @@ export function FloatingResultCard({
     chance,
     rise,
     opacity,
-    hasBadges = false,
-    badgeCount = 0,
 }: {
     kind: "hit" | "block" | "miss" | "heal";
     title: string;
@@ -511,11 +509,9 @@ export function FloatingResultCard({
     chance?: number;
     rise: number;
     opacity: number;
-    hasBadges?: boolean;
-    badgeCount?: number;
 }) {
     const worldRise = rise / 80;
-    const anchorY = resultAnchorY(hasBadges, badgeCount);
+    const anchorY = resultAnchorY();
     return (
         <Html
             position={[0, anchorY + worldRise, 0]}

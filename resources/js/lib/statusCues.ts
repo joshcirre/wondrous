@@ -6,7 +6,7 @@ export const BADGE_ROW_MAX_W = 1;
 export const HEALTH_BAR_Y = 1.37;
 export const HEALTH_BAR_H = 0.067;
 export const BADGE_HEALTH_GAP = 0.08;
-export const RESULT_CLEARANCE = 0.1;
+export const RESULT_CLEARANCE = 0.08;
 export const BADGE_ROW_Y =
     HEALTH_BAR_Y + HEALTH_BAR_H / 2 + BADGE_HEALTH_GAP + (BADGE_CHIP_MAX_W * 0.68) / 2;
 export const BADGE_CHIP_SURFACE = "#191f1a";
@@ -92,11 +92,7 @@ function styleFor(id: string): { glyph: string; color: string } {
     return STATUS_STYLE[id] ?? { glyph: "•", color: "#a6ad9f" };
 }
 
-export function resultAnchorY(hasBadges: boolean, badgeCount = 1): number {
-    if (hasBadges) {
-        const { height } = badgeChipSize(Math.max(1, badgeCount));
-        return BADGE_ROW_Y + height / 2 + RESULT_CLEARANCE;
-    }
+export function resultAnchorY(): number {
     return HEALTH_BAR_Y + HEALTH_BAR_H / 2 + RESULT_CLEARANCE;
 }
 

@@ -12,6 +12,7 @@ import {
     HEALTH_BAR_H,
     HEALTH_BAR_Y,
     LESSON_FADE_MS,
+    RESULT_CLEARANCE,
     STATUS_OVERLAY_POINTER_EVENTS,
     STATUS_STYLE,
     badgeChipSize,
@@ -221,19 +222,14 @@ describe("statusBadgeRow", () => {
 });
 
 describe("result box vs badges", () => {
-    it("sits above the badge row when the target has badges", () => {
-        const count = 2;
-        const top = BADGE_ROW_Y + badgeChipSize(count).height / 2;
-        const y = resultAnchorY(true, count);
-        assert.ok(y >= top, `anchor ${y} covers badge top ${top}`);
-        assert.ok(y > resultAnchorY(false));
-    });
-
-    it("sits above the health bar when the target has no badges", () => {
+    it("anchors just above the health bar and ignores badge count", () => {
         const healthTop = HEALTH_BAR_Y + HEALTH_BAR_H / 2;
-        const y = resultAnchorY(false);
-        assert.ok(y >= healthTop, `anchor ${y} covers health top ${healthTop}`);
-        assert.ok(y < BADGE_ROW_Y, "empty-badge anchor should stay at the health bar, not the badge row");
+        const y = resultAnchorY();
+        assert.equal(y, healthTop + RESULT_CLEARANCE);
+        assert.ok(y > healthTop);
+        assert.ok(RESULT_CLEARANCE > 0 && RESULT_CLEARANCE <= 0.08 + 1e-6);
+        assert.ok(y < BADGE_ROW_Y);
+        assert.equal(resultAnchorY(), resultAnchorY());
     });
 
     it("hides only the target's badges while the result shows", () => {

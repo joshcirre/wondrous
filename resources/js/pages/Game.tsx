@@ -988,20 +988,27 @@ export default function Game() {
                                       ? "Place champions in your two home rows"
                                       : "The Sunken Court"}
                             </small>
-                            {animHud.floatScreens[0] && (
-                                <strong
-                                    className={`last-result-chip ${animHud.floatKind}`}
-                                    data-last-result={`${animHud.floatKind}:${animHud.floatTitle}:${animHud.floatValue}:${animHud.floatChance}`}
-                                >
-                                    {animHud.floatValue && (
-                                        <b>{animHud.floatValue}</b>
-                                    )}
-                                    {animHud.floatTitle}
-                                    {animHud.floatChance && (
-                                        <em>{animHud.floatChance}%</em>
-                                    )}
-                                </strong>
-                            )}
+                            <div
+                                className="sr-only"
+                                aria-live="polite"
+                                data-last-result={
+                                    animHud.floatScreens[0]
+                                        ? `${animHud.floatKind}:${animHud.floatTitle}:${animHud.floatValue}:${animHud.floatChance}`
+                                        : ""
+                                }
+                            >
+                                {animHud.floatScreens[0]
+                                    ? [
+                                          animHud.floatValue,
+                                          animHud.floatTitle,
+                                          animHud.floatChance
+                                              ? `${animHud.floatChance}%`
+                                              : null,
+                                      ]
+                                          .filter(Boolean)
+                                          .join(" ")
+                                    : ""}
+                            </div>
                         </div>
                         <div>
                             {opponent?.name}

@@ -1373,7 +1373,7 @@ small {
     animation: spin 1s linear infinite;
 }
 .board-float-anchor {
-    transform: translate(-50%, calc(-100% - 6px));
+    transform: translate(-50%, calc(-100% - 8px));
 }
 .board-float {
     display: flex;

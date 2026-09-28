@@ -895,13 +895,11 @@ function MotionDriver({
     viewRef,
     onHud,
     viewerId,
-    units,
 }: {
     animation?: AnimationQueue | null;
     viewRef: MutableRefObject<QueueView>;
     onHud?: Props["onHud"];
     viewerId: number;
-    units: Unit[];
 }) {
     const [view, setView] = useState(viewRef.current);
     const hudKey = useRef("");
@@ -928,17 +926,10 @@ function MotionDriver({
         }
         camera.updateMatrixWorld();
         const floatScreens = next.floats.map((item) => {
-            const target = units.find((unit) => unit.id === item.unitId);
-            const badges = target
-                ? statusBadgeRow({
-                      recovery: target.recovery ?? 0,
-                      statuses: target.statuses ?? {},
-                  })
-                : [];
             const [wx, wy, wz] = tilePos(
                 item.x,
                 item.y,
-                resultAnchorY(badges.length > 0, badges.length) + item.rise / 80,
+                resultAnchorY() + item.rise / 80,
             );
             projected.set(wx, wy, wz).project(camera);
             return {
@@ -990,13 +981,6 @@ function MotionDriver({
                 <MotionEffectMesh key={effect.id} {...effect} />
             ))}
             {htmlBoardFloats(view.floats).map((item) => {
-                const target = units.find((unit) => unit.id === item.unitId);
-                const badges = target
-                    ? statusBadgeRow({
-                          recovery: target.recovery ?? 0,
-                          statuses: target.statuses ?? {},
-                      })
-                    : [];
                 return (
                     <group key={item.id} position={tilePos(item.x, item.y, 0)}>
                         <FloatingResultCard
@@ -1006,8 +990,6 @@ function MotionDriver({
                             chance={item.chance}
                             rise={item.rise}
                             opacity={item.opacity}
-                            hasBadges={badges.length > 0}
-                            badgeCount={badges.length}
                         />
                     </group>
                 );
@@ -1255,7 +1237,6 @@ function Scene({
                 viewRef={viewRef}
                 onHud={onHud}
                 viewerId={viewerId}
-                units={units}
             />
             {units.map((unit) => (
                 <Pawn
