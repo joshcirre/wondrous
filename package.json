@@ -6,7 +6,7 @@
     "build": "vite build",
     "dev": "vite",
     "typecheck": "tsc --noEmit",
-    "test:js": "node --experimental-strip-types --test tests/js/boardClick.test.ts"
+    "test:js": "node --experimental-strip-types --test tests/js/*.test.ts"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.0.0",

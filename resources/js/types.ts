@@ -162,12 +162,17 @@ export type LegalAttack = {
     block_chance: number;
     damage_on_hit: number;
     land_chance: number;
+    lethal: boolean;
+    block_chances: { front: number; side: number; rear: number };
 };
 export type LegalSkillTarget = {
     target_id: string;
     effect: string;
     amount: number;
     always_hits: true;
+    land_chance: number;
+    lethal: boolean;
+    damage_on_hit?: number;
 };
 export type LegalSkill = {
     usable: boolean;
@@ -186,6 +191,7 @@ export type UnitOptions = {
 export type LegalOptions = {
     version: number;
     units: Record<string, UnitOptions>;
+    cues?: { breakdown: boolean; skill_strip: boolean };
 };
 export type Game = {
     id: string;
@@ -194,6 +200,7 @@ export type Game = {
     ranked: boolean;
     mode: "multiplayer" | "practice";
     time_control: "live" | "correspondence";
+    reduced_board?: boolean;
     turn_due_at: string | null;
     version: number;
     state: State;

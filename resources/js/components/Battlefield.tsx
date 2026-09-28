@@ -1,7 +1,32 @@
 import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
 import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { Billboard, OrbitControls } from "@react-three/drei";
-import { collectBoardHits, resolveBoardClick } from "../lib/boardClick";
+import { collectBoardHits, resolveBoardClick, resolveBoardHover } from "../lib/boardClick";
+import type { AimChip } from "../lib/aimChip";
+import {
+    ActionStrip,
+    AimChipCard,
+    AimLine,
+    Crosshair,
+    DashedRing,
+    DottedTrail,
+    FadeGroup,
+    FacingControls,
+    GhostMarker,
+    GoldRing,
+    MoonBadge,
+    SplitFacingRing,
+    SwapCue,
+    ember,
+    gold,
+    goldDeep,
+    healGreen,
+    spentGrey,
+    teamRed,
+    teal,
+    tilePos,
+    violet,
+} from "./boardCues";
 import {
     CanvasTexture,
     Color,
@@ -37,13 +62,37 @@ type Props = {
     selectedId: string | null;
     onSelect: (id: string | null) => void;
     onTile: (x: number, y: number) => void;
+    onHover?: (hover: { x: number; y: number } | null) => void;
     highlights?: Array<{ x: number; y: number; kind?: string }>;
+    hover?: { x: number; y: number } | null;
+    path?: [number, number][];
+    ghost?: { x: number; y: number; facing: string } | null;
+    fadedIds?: string[];
+    swapHover?: { a: { x: number; y: number }; b: { x: number; y: number } } | null;
+    aim?: {
+        from: { x: number; y: number };
+        to: { x: number; y: number };
+        chip: AimChip;
+        skillTint: "violet" | "green" | null;
+        showFacingRing: boolean;
+        facing: string;
+        blockSide?: string;
+        lethal: boolean;
+    } | null;
+    actionStrip?: {
+        mode: "attack" | "skill";
+        skillName: string;
+        skillKind: "heal" | "skill";
+        onMode: (mode: "attack" | "skill") => void;
+    } | null;
+    facingControls?: {
+        facing: string;
+        onFace: (facing: string) => void;
+    } | null;
     deployment?: boolean;
     interactive?: boolean;
     homeSide?: "north" | "south";
 };
-const teal = "#62dfc2",
-    red = "#eb8173";
 
 function NonInteractive({ children }: { children: ReactNode }) {
     const visuals = useRef<Group>(null);
@@ -73,17 +122,30 @@ function Pawn({
     unit,
     selected,
     friendly,
+    faded,
+    lethal,
     onBoardPointer,
+    onBoardHover,
     interactive,
+    actionStrip,
+    facingControls,
+    aimHere,
 }: {
     unit: Unit;
     selected: boolean;
     friendly: boolean;
+    faded: boolean;
+    lethal: boolean;
     onBoardPointer: (e: ThreeEvent<MouseEvent>) => void;
+    onBoardHover?: (e: ThreeEvent<PointerEvent>) => void;
     interactive: boolean;
+    actionStrip?: Props["actionStrip"];
+    facingControls?: Props["facingControls"];
+    aimHere?: Props["aim"];
 }) {
     const group = useRef<Group>(null);
     const facing = useRef<Group>(null);
+    const health = useRef<Mesh>(null);
     const direction =
         (
             {
@@ -113,6 +175,12 @@ function Pawn({
             );
             facing.current.rotation.y += delta * (1 - Math.exp(-14 * dt));
         }
+        if (health.current?.material) {
+            const material = health.current.material as MeshBasicMaterial;
+            material.opacity = lethal
+                ? 0.45 + (Math.sin(performance.now() / 140) + 1) * 0.27
+                : 1;
+        }
     });
     return (
         <group ref={group} position={initialPosition.current}>
@@ -127,9 +195,11 @@ function Pawn({
                     rotation={[-Math.PI / 2, 0, 0]}
                     position={[0, 0.06, 0]}
                     onClick={onBoardPointer}
+                    onPointerMove={onBoardHover}
                     onPointerOver={(e) => {
                         e.stopPropagation();
                         if (interactive) document.body.style.cursor = "pointer";
+                        onBoardHover?.(e);
                     }}
                     onPointerOut={() => {
                         document.body.style.cursor = "auto";
@@ -144,67 +214,136 @@ function Pawn({
                 </mesh>
             )}
             <NonInteractive>
-                {selected && unit.hp > 0 && (
-                    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
-                        <ringGeometry args={[0.37, 0.44, 40]} />
-                        <meshBasicMaterial
-                            color="#ffe4a0"
-                            transparent
-                            opacity={0.95}
-                        />
-                    </mesh>
-                )}
-                <group
-                    ref={facing}
-                    rotation={initialDirection.current}
-                    visible={unit.hp > 0}
+                <FadeGroup
+                    opacity={faded ? 0.35 : (unit.recovery ?? 0) > 0 ? 0.6 : 1}
                 >
-                    <Miniature
-                        id={unit.character_id}
-                        color={friendly ? teal : red}
-                    />
-                    <mesh
-                        rotation={[-Math.PI / 2, 0, Math.PI]}
-                        position={[0, 0.026, -0.37]}
+                    {selected && unit.hp > 0 && (unit.recovery ?? 0) === 0 && (
+                        <>
+                            <GoldRing radius={0.38} width={0.08} y={0.055} />
+                            <GoldRing
+                                radius={0.5}
+                                width={0.05}
+                                y={0.05}
+                                opacity={0.4}
+                            />
+                        </>
+                    )}
+                    {(unit.recovery ?? 0) > 0 && unit.hp > 0 && (
+                        <DashedRing radius={0.37} y={0.02} />
+                    )}
+                    {aimHere?.showFacingRing && unit.hp > 0 ? (
+                        <SplitFacingRing facing={unit.facing ?? "south"} />
+                    ) : (
+                        unit.hp > 0 &&
+                        (unit.recovery ?? 0) === 0 &&
+                        !selected && (
+                            <mesh
+                                rotation={[-Math.PI / 2, 0, 0]}
+                                position={[0, 0.05, 0]}
+                                renderOrder={1}
+                            >
+                                <ringGeometry args={[0.32, 0.38, 32]} />
+                                <meshBasicMaterial
+                                    color={friendly ? teal : teamRed}
+                                    transparent
+                                    opacity={0.85}
+                                    depthTest={false}
+                                    depthWrite={false}
+                                />
+                            </mesh>
+                        )
+                    )}
+                    <group
+                        ref={facing}
+                        rotation={initialDirection.current}
+                        visible={unit.hp > 0}
                     >
-                        <circleGeometry args={[0.055, 3]} />
-                        <meshBasicMaterial color={friendly ? teal : red} />
-                    </mesh>
-                </group>
-                <CombatEffect hp={unit.hp} mana={unit.mana} />
-                <Billboard visible={unit.hp > 0} position={[0, 1.37, 0]}>
-                    <mesh>
-                        <planeGeometry args={[0.55, 0.067]} />
-                        <meshBasicMaterial color="#192623" depthTest={false} />
-                    </mesh>
-                    <mesh
-                        position={[
-                            -0.25 * (1 - unit.hp / unit.max_hp),
-                            0,
-                            0.002,
-                        ]}
-                    >
-                        <planeGeometry
-                            args={[
-                                0.5 * Math.max(0.01, unit.hp / unit.max_hp),
-                                0.031,
-                            ]}
+                        <Miniature
+                            id={unit.character_id}
+                            color={friendly ? teal : teamRed}
                         />
-                        <meshBasicMaterial
-                            color={friendly ? teal : red}
-                            depthTest={false}
-                        />
-                    </mesh>
-                    {(unit.recovery ?? 0) > 0 && (
-                        <mesh position={[0.34, 0, 0]}>
-                            <circleGeometry args={[0.04, 8]} />
+                        <mesh
+                            rotation={[-Math.PI / 2, 0, Math.PI]}
+                            position={[0, 0.026, -0.37]}
+                        >
+                            <circleGeometry args={[0.055, 3]} />
                             <meshBasicMaterial
-                                color="#e4ba72"
+                                color={
+                                    (unit.recovery ?? 0) > 0
+                                        ? spentGrey
+                                        : friendly
+                                          ? teal
+                                          : teamRed
+                                }
+                            />
+                        </mesh>
+                    </group>
+                    <CombatEffect hp={unit.hp} mana={unit.mana} />
+                    <Billboard visible={unit.hp > 0} position={[0, 1.37, 0]}>
+                        <mesh>
+                            <planeGeometry args={[0.55, 0.067]} />
+                            <meshBasicMaterial
+                                color="#192623"
                                 depthTest={false}
                             />
                         </mesh>
+                        <mesh
+                            ref={health}
+                            position={[
+                                -0.25 * (1 - unit.hp / unit.max_hp),
+                                0,
+                                0.002,
+                            ]}
+                        >
+                            <planeGeometry
+                                args={[
+                                    0.5 *
+                                        Math.max(0.01, unit.hp / unit.max_hp),
+                                    0.031,
+                                ]}
+                            />
+                            <meshBasicMaterial
+                                color={
+                                    lethal
+                                        ? ember
+                                        : friendly
+                                          ? teal
+                                          : teamRed
+                                }
+                                transparent
+                                opacity={1}
+                                depthTest={false}
+                            />
+                        </mesh>
+                    </Billboard>
+                    {(unit.recovery ?? 0) > 0 && unit.hp > 0 && (
+                        <MoonBadge turns={unit.recovery ?? 0} />
                     )}
-                </Billboard>
+                    {faded && unit.hp > 0 && (
+                        <GoldRing
+                            radius={0.33}
+                            width={0.02}
+                            y={0.7}
+                            opacity={0.7}
+                            color="#1c1c18"
+                        />
+                    )}
+                </FadeGroup>
+                {selected && actionStrip && (
+                    <ActionStrip {...actionStrip} />
+                )}
+                {selected && facingControls && (
+                    <FacingControls
+                        onFace={facingControls.onFace}
+                        interactive={interactive}
+                    />
+                )}
+                {aimHere && (
+                    <>
+                        <Crosshair />
+                        <AimChipCard chip={aimHere.chip} />
+                    </>
+                )}
             </NonInteractive>
         </group>
     );
@@ -646,7 +785,16 @@ function Scene({
     selectedId,
     onSelect,
     onTile,
+    onHover,
     highlights = [],
+    hover = null,
+    path,
+    ghost,
+    fadedIds = [],
+    swapHover,
+    aim,
+    actionStrip,
+    facingControls,
     deployment = false,
     interactive = true,
     homeSide = "south",
@@ -664,8 +812,17 @@ function Scene({
         );
         if (decision.type === "tile") onTile(decision.x, decision.y);
         else if (decision.type === "select") onSelect(decision.unitId);
-        else if (decision.type === "deselect") onSelect(null);
+        else         if (decision.type === "deselect") onSelect(null);
     };
+    const onBoardHover = (e: ThreeEvent<PointerEvent>) => {
+        if (!interactive) return;
+        onHover?.(resolveBoardHover(collectBoardHits(e.intersections), highlights));
+    };
+    const cueColor = aim?.skillTint === "green"
+        ? healGreen
+        : aim?.skillTint === "violet"
+          ? violet
+          : gold;
     return (
         <>
             <color attach="background" args={["#9cbfc9"]} />
@@ -736,21 +893,24 @@ function Scene({
                 const x = i % 8,
                     y = Math.floor(i / 8),
                     h = highlights.find((h) => h.x === x && h.y === y);
+                const hovered = hover?.x === x && hover?.y === y;
                 const hc =
-                    h?.kind === "attack"
-                        ? "#ec6d5d"
-                        : h?.kind === "skill"
-                          ? "#b997ff"
-                          : teal;
+                    h?.kind === "skill"
+                        ? aim?.skillTint === "green"
+                            ? healGreen
+                            : violet
+                        : gold;
                 return (
                     <group key={i} position={[x - 3.5, 0, y - 3.5]}>
                         <mesh
                             receiveShadow
                             userData={{ boardKind: "tile", x, y }}
                             onClick={onBoardPointer}
-                            onPointerOver={() => {
+                            onPointerMove={onBoardHover}
+                            onPointerOver={(e) => {
                                 if (interactive)
                                     document.body.style.cursor = "pointer";
+                                onBoardHover(e);
                             }}
                             onPointerOut={() => {
                                 document.body.style.cursor = "auto";
@@ -779,29 +939,29 @@ function Scene({
                                 />
                             </mesh>
                         )}
-                        {h && (
+                        {h?.kind === "move" && (
                             <mesh
                                 rotation={[-Math.PI / 2, 0, 0]}
                                 position={[0, 0.108, 0]}
                             >
                                 <planeGeometry args={[0.88, 0.88]} />
                                 <meshBasicMaterial
-                                    color={hc}
+                                    color={hovered ? gold : goldDeep}
                                     transparent
-                                    opacity={0.33}
+                                    opacity={hovered ? 0.55 : 0.28}
                                 />
                             </mesh>
                         )}
-                        {h && (
+                        {(h?.kind === "attack" || h?.kind === "skill") && (
                             <mesh
                                 rotation={[-Math.PI / 2, 0, 0]}
                                 position={[0, 0.113, 0]}
                             >
-                                <ringGeometry args={[0.12, 0.165, 24]} />
+                                <ringGeometry args={[0.34, 0.42, 32]} />
                                 <meshBasicMaterial
                                     color={hc}
                                     transparent
-                                    opacity={0.9}
+                                    opacity={0.95}
                                 />
                             </mesh>
                         )}
@@ -813,9 +973,9 @@ function Scene({
                                 >
                                     <planeGeometry args={[0.96, 0.96]} />
                                     <meshBasicMaterial
-                                        color={teal}
+                                        color={gold}
                                         transparent
-                                        opacity={0.13}
+                                        opacity={0.08}
                                     />
                                 </mesh>
                             )}
@@ -835,14 +995,36 @@ function Scene({
                     </group>
                 );
             })}
+            {path && path.length > 1 && (
+                <DottedTrail points={path} color={gold} />
+            )}
+            {ghost && <GhostMarker x={ghost.x} y={ghost.y} facing={ghost.facing} />}
+            {aim && (
+                <AimLine from={aim.from} to={aim.to} color={cueColor} />
+            )}
+            {swapHover && <SwapCue a={swapHover.a} b={swapHover.b} />}
             {units.map((unit) => (
                 <Pawn
                     key={unit.id}
                     unit={unit}
                     selected={selectedId === unit.id}
                     friendly={unit.owner_id === viewerId}
+                    faded={fadedIds.includes(unit.id)}
+                    lethal={Boolean(aim?.lethal && aim.to.x === unit.x && aim.to.y === unit.y)}
                     onBoardPointer={onBoardPointer}
+                    onBoardHover={onBoardHover}
                     interactive={interactive}
+                    actionStrip={
+                        selectedId === unit.id ? actionStrip : null
+                    }
+                    facingControls={
+                        selectedId === unit.id ? facingControls : null
+                    }
+                    aimHere={
+                        aim && aim.to.x === unit.x && aim.to.y === unit.y
+                            ? aim
+                            : null
+                    }
                 />
             ))}
         </>
@@ -858,6 +1040,7 @@ export default function Battlefield(props: Props) {
                 position: "relative",
             }}
             aria-label="Three dimensional tactical battlefield"
+            onPointerLeave={() => props.onHover?.(null)}
         >
             <Canvas
                 shadows={{ type: PCFShadowMap }}

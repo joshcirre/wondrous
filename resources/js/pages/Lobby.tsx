@@ -55,6 +55,7 @@ export default function Lobby() {
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState("");
     const [code, setCode] = useState("");
+    const [reducedBoard, setReducedBoard] = useState(true);
     useEffect(() => {
         const e = realtime();
         const refresh = () =>
@@ -79,6 +80,7 @@ export default function Lobby() {
                 name: "Practice arena",
                 ranked: false,
                 mode: "practice",
+                reduced_board: reducedBoard,
             });
             router.visit(`/games/${data.code}`);
         } catch (error) {
@@ -96,6 +98,7 @@ export default function Lobby() {
                 ranked: mode === "ranked",
                 time_control:
                     mode === "correspondence" ? "correspondence" : "live",
+                reduced_board: reducedBoard,
             });
             router.visit(`/games/${r.data.code}`);
         } catch (e) {
@@ -256,17 +259,30 @@ export default function Lobby() {
                         Resume practice <ArrowRightIcon />
                     </Link>
                 ) : (
-                    <button
-                        type="button"
-                        className="button"
-                        onClick={startPractice}
-                        disabled={practiceBusy}
-                    >
-                        {practiceBusy
-                            ? "Preparing your opponent…"
-                            : "Play against computer"}
-                        <ArrowRightIcon />
-                    </button>
+                    <div className="practice-actions">
+                        <label className="reduced-board-toggle compact">
+                            <input
+                                type="checkbox"
+                                name="practice_reduced_board"
+                                checked={reducedBoard}
+                                onChange={(e) =>
+                                    setReducedBoard(e.target.checked)
+                                }
+                            />
+                            Reduced board
+                        </label>
+                        <button
+                            type="button"
+                            className="button"
+                            onClick={startPractice}
+                            disabled={practiceBusy}
+                        >
+                            {practiceBusy
+                                ? "Preparing your opponent…"
+                                : "Play against computer"}
+                            <ArrowRightIcon />
+                        </button>
+                    </div>
                 )}
             </section>
             <div className="page-heading" id="arena-settings">
@@ -343,6 +359,21 @@ export default function Lobby() {
                                   ? "Play together in real time. Results affect your arena rating."
                                   : "Play together in real time without changing your rating."}
                         </p>
+                        <label className="reduced-board-toggle">
+                            <input
+                                type="checkbox"
+                                name="reduced_board"
+                                checked={reducedBoard}
+                                onChange={(e) =>
+                                    setReducedBoard(e.target.checked)
+                                }
+                            />
+                            Reduced board
+                            <small>
+                                Hide facing breakdown on turns 1–2 and the
+                                skill strip on turns 1–3.
+                            </small>
+                        </label>
                         <ErrorBanner message={error} />
                         {active && mode !== "correspondence" ? (
                             <Link

@@ -300,7 +300,7 @@ final class GameEngine
                 return 0;
             }
         }
-        $damage = min($t['hp'], max(1, $amount - ($pierce ? 0 : $this->armorFor($s, $j))));
+        $damage = $this->resolveDamage($s, $i, $j, $amount, $pierce);
         $s['units'][$j]['hp'] -= $damage;
         $this->log($s, $c['name'].' dealt '.$damage.' damage to '.$d['name'].'.');
         if ($roll) {
@@ -577,13 +577,22 @@ final class GameEngine
         $block = $this->blockChance($s, $i, $j);
         $factor = $this->blockFactor($attacker, $defender);
 
+        $damage = $this->resolveDamage($s, $i, $j, CharacterCatalog::get($attacker['character_id'])['attack'], false);
+        $catalogBlock = CharacterCatalog::get($defender['character_id'])['block'];
+
         return [
             'target_id' => $defender['id'],
             'hit_chance' => $hit,
             'block_side' => $factor === 1.0 ? 'front' : ($factor === 0.0 ? 'rear' : 'side'),
             'block_chance' => $block,
-            'damage_on_hit' => min($defender['hp'], max(1, CharacterCatalog::get($attacker['character_id'])['attack'] - $this->armorFor($s, $j))),
+            'damage_on_hit' => $damage,
             'land_chance' => (int) round($hit * (1 - $block / 100)),
+            'lethal' => $damage >= $defender['hp'],
+            'block_chances' => [
+                'front' => (int) floor($catalogBlock * 1.0),
+                'side' => (int) floor($catalogBlock * 0.5),
+                'rear' => 0,
+            ],
         ];
     }
 
@@ -591,17 +600,37 @@ final class GameEngine
     {
         $i = $this->unitIndex($s, $unit['id']);
         $j = $this->unitIndex($s, $target['id']);
-
-        return [
+        $amount = $this->skillAmount($s, $i, $j);
+        $effect = match ($unit['character_id']) {
+            'warden' => 'ward',
+            'cleric', 'druid', 'herald' => 'heal',
+            default => 'damage',
+        };
+        $preview = [
             'target_id' => $target['id'],
-            'effect' => match ($unit['character_id']) {
-                'warden' => 'ward',
-                'cleric', 'druid', 'herald' => 'heal',
-                default => 'damage',
-            },
-            'amount' => $this->skillAmount($s, $i, $j),
+            'effect' => $effect,
+            'amount' => $amount,
             'always_hits' => true,
+            'land_chance' => 100,
+            'lethal' => false,
         ];
+        if ($effect === 'damage') {
+            $damage = $this->resolveDamage($s, $i, $j, $amount, $this->skillPierces($unit['character_id']));
+            $preview['damage_on_hit'] = $damage;
+            $preview['lethal'] = $damage >= $target['hp'];
+        }
+
+        return $preview;
+    }
+
+    private function skillPierces(string $id): bool
+    {
+        return in_array($id, ['ranger', 'arcanist', 'rogue', 'revenant'], true);
+    }
+
+    private function resolveDamage(array $s, int $i, int $j, int $amount, bool $pierce): int
+    {
+        return min($s['units'][$j]['hp'], max(1, $amount - ($pierce ? 0 : $this->armorFor($s, $j))));
     }
 
     private function skillCandidates(array $s, array $unit, string $targetType): array

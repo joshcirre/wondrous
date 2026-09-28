@@ -26,42 +26,30 @@ import {
 import { Eyebrow, ErrorBanner } from "../components/Shell";
 import CharacterCard, { Portrait } from "../components/CharacterCard";
 import { api, errorMessage, realtime } from "../api";
-import type { Game as GameType, Shared, Unit } from "../types";
-import { battleTargets } from "../lib/boardClick";
+import type {
+    Game as GameType,
+    LegalAttack,
+    LegalMove,
+    LegalSkillTarget,
+    Shared,
+} from "../types";
+import { aimChip } from "../lib/aimChip";
+import { cameraForHome, fadedUnitIds } from "../lib/boardFade";
+import { cueVisibility } from "../lib/reducedBoard";
 const Battlefield = lazy(() => import("../components/Battlefield"));
 const coordinate = (x: number, y: number) => `${"ABCDEFGH"[x]}${8 - y}`;
-function reachable(unit: Unit, units: Unit[], range: number) {
-    const occupied = new Set(
-        units.filter((u) => u.hp > 0).map((u) => `${u.x},${u.y}`),
-    );
-    const found = new Set([`${unit.x},${unit.y}`]);
-    const queue = [{ x: unit.x, y: unit.y, d: 0 }];
-    const result: { x: number; y: number; kind: string }[] = [];
-    for (let i = 0; i < queue.length; i++) {
-        const { x, y, d } = queue[i];
-        if (d >= range) continue;
-        for (const [nx, ny] of [
-            [x + 1, y],
-            [x - 1, y],
-            [x, y + 1],
-            [x, y - 1],
-        ]) {
-            const key = `${nx},${ny}`;
-            if (
-                nx < 0 ||
-                nx > 7 ||
-                ny < 0 ||
-                ny > 7 ||
-                found.has(key) ||
-                occupied.has(key)
-            )
-                continue;
-            found.add(key);
-            queue.push({ x: nx, y: ny, d: d + 1 });
-            result.push({ x: nx, y: ny, kind: "move" });
-        }
-    }
-    return result;
+function facingFromPath(path: [number, number][]): string {
+    if (path.length < 2) return "north";
+    const [from, to] = path.slice(-2);
+    const dx = to[0] - from[0];
+    const dy = to[1] - from[1];
+    return Math.abs(dx) > Math.abs(dy)
+        ? dx > 0
+            ? "east"
+            : "west"
+        : dy > 0
+          ? "south"
+          : "north";
 }
 export default function Game() {
     const props = usePage<Shared & { game: GameType }>().props;
@@ -73,11 +61,11 @@ export default function Game() {
     const [error, setError] = useState("");
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [draftChoice, setDraftChoice] = useState<string | null>(null);
-    const [mode, setMode] = useState<"move" | "attack" | "skill">("move");
+    const [mode, setMode] = useState<"attack" | "skill">("attack");
+    const [hover, setHover] = useState<{ x: number; y: number } | null>(null);
     const [connected, setConnected] = useState(false);
     const [confirmResign, setConfirmResign] = useState(false);
     const [copied, setCopied] = useState(false);
-    const [destination, setDestination] = useState("");
     const practice = game.mode === "practice";
     const [syncing, setSyncing] = useState(false);
     const refreshRef = useRef(false);
@@ -137,8 +125,8 @@ export default function Game() {
     }, [game.id, mine, refresh]);
     useEffect(() => {
         setDraftChoice(null);
-        setMode("move");
-        setDestination("");
+        setMode("attack");
+        setHover(null);
     }, [state.turn_player_id, state.phase]);
     useEffect(() => {
         if (state.phase === "finished") router.reload({ only: ["auth"] });
@@ -158,9 +146,8 @@ export default function Game() {
             if (type === "draft") setDraftChoice(null);
             if (type === "end_turn") {
                 setSelectedId(null);
-                setMode("move");
+                setMode("attack");
             }
-            setDestination("");
         } catch (e) {
             setError(errorMessage(e));
             await refresh();
@@ -180,27 +167,10 @@ export default function Game() {
         !selected.statuses.stun &&
         state.phase === "battle",
     );
-    const targets = useMemo(
-        () =>
-            battleTargets({
-                selected,
-                character,
-                canControl,
-                mode,
-                acted: state.acted,
-                units: state.units,
-                viewerId: viewer.id,
-            }),
-        [
-            selected,
-            character,
-            canControl,
-            mode,
-            state.acted,
-            state.units,
-            viewer.id,
-        ],
-    );
+    const unitOptions = selected
+        ? game.options?.units[selected.id]
+        : undefined;
+    const cues = cueVisibility(game.options?.cues);
     const highlights = useMemo(() => {
         if (!selected) return [];
         if (
@@ -217,15 +187,30 @@ export default function Game() {
                     })),
             );
         }
-        if (!canControl) return [];
-        if (mode !== "move")
-            return targets.map((u) => ({
-                x: u.x,
-                y: u.y,
-                kind: mode === "attack" ? "attack" : "skill",
-            }));
-        if (state.moved || selected.statuses.root) return [];
-        return reachable(selected, state.units, character!.move);
+        if (!canControl || !unitOptions) return [];
+        const tiles: { x: number; y: number; kind: string }[] = [];
+        if (!state.moved && !selected.statuses.root) {
+            for (const move of unitOptions.moves) {
+                tiles.push({ x: move.x, y: move.y, kind: "move" });
+            }
+        }
+        if (!state.acted) {
+            const skillOn = mode === "skill" && cues.skill_strip && unitOptions.skill.usable;
+            if (skillOn) {
+                for (const target of unitOptions.skill.targets) {
+                    const unit = state.units.find((u) => u.id === target.target_id);
+                    if (unit)
+                        tiles.push({ x: unit.x, y: unit.y, kind: "skill" });
+                }
+            } else {
+                for (const attack of unitOptions.attack) {
+                    const unit = state.units.find((u) => u.id === attack.target_id);
+                    if (unit)
+                        tiles.push({ x: unit.x, y: unit.y, kind: "attack" });
+                }
+            }
+        }
+        return tiles;
     }, [
         selected,
         state.phase,
@@ -233,16 +218,96 @@ export default function Game() {
         state.host_id,
         state.units,
         state.moved,
+        state.acted,
         viewer.id,
         canControl,
         mode,
-        targets,
-        character,
+        unitOptions,
+        cues.skill_strip,
     ]);
+    const hoveredMove: LegalMove | undefined = hover
+        ? unitOptions?.moves.find((move) => move.x === hover.x && move.y === hover.y)
+        : undefined;
+    const hoveredUnit = hover
+        ? state.units.find((unit) => unit.hp > 0 && unit.x === hover.x && unit.y === hover.y)
+        : undefined;
+    const hoveredAttack: LegalAttack | undefined =
+        hoveredUnit && unitOptions
+            ? unitOptions.attack.find((attack) => attack.target_id === hoveredUnit.id)
+            : undefined;
+    const hoveredSkill: LegalSkillTarget | undefined =
+        hoveredUnit && unitOptions
+            ? unitOptions.skill.targets.find((target) => target.target_id === hoveredUnit.id)
+            : undefined;
+    const homeSide = viewer.id === state.host_id ? "south" : "north";
+    const fadedIds = fadedUnitIds({
+        hover,
+        units: state.units,
+        camera: cameraForHome(homeSide),
+    });
+    const skillOn = mode === "skill" && cues.skill_strip && Boolean(unitOptions?.skill.usable);
+    const aimPreview =
+        canControl && hoveredUnit && !state.acted
+            ? skillOn && hoveredSkill
+                ? aimChip({
+                      preview: {
+                          kind: "skill",
+                          land_chance: hoveredSkill.land_chance,
+                          damage_on_hit: hoveredSkill.damage_on_hit,
+                          lethal: hoveredSkill.lethal,
+                          always_hits: hoveredSkill.always_hits,
+                          effect: hoveredSkill.effect,
+                          amount: hoveredSkill.amount,
+                      },
+                      showBreakdown: cues.breakdown,
+                  })
+                : hoveredAttack
+                  ? aimChip({
+                        preview: { kind: "attack", ...hoveredAttack },
+                        showBreakdown: cues.breakdown,
+                    })
+                  : null
+            : null;
+    const swapHover =
+        state.phase === "deployment" &&
+        selected &&
+        hoveredUnit &&
+        hoveredUnit.id !== selected.id &&
+        hoveredUnit.owner_id === viewer.id
+            ? { a: { x: selected.x, y: selected.y }, b: { x: hoveredUnit.x, y: hoveredUnit.y } }
+            : null;
+    const path = hoveredMove?.path;
+    const ghost =
+        hoveredMove && selected
+            ? {
+                  x: hoveredMove.x,
+                  y: hoveredMove.y,
+                  facing: facingFromPath(hoveredMove.path),
+              }
+            : state.phase === "deployment" &&
+                selected &&
+                hover &&
+                highlights.some((tile) => tile.x === hover.x && tile.y === hover.y) &&
+                !hoveredUnit
+              ? { x: hover.x, y: hover.y, facing: selected.facing }
+              : null;
+    useEffect(() => {
+        function onKey(event: KeyboardEvent) {
+            if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement)
+                return;
+            if (event.key === "a" || event.key === "A") setMode("attack");
+            if ((event.key === "s" || event.key === "S") && cues.skill_strip)
+                setMode("skill");
+        }
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    }, [cues.skill_strip]);
+    useEffect(() => {
+        if (!cues.skill_strip && mode === "skill") setMode("attack");
+    }, [cues.skill_strip, mode]);
     function select(id: string | null) {
         setSelectedId(id);
-        setMode("move");
-        setDestination("");
+        setMode("attack");
     }
     function tile(x: number, y: number) {
         if (
@@ -251,19 +316,20 @@ export default function Game() {
             busy
         )
             return;
+        const kind = highlights.find((t) => t.x === x && t.y === y)?.kind;
         if (state.phase === "deployment")
             void action("deploy", { unit_id: selected.id, x, y });
-        else if (mode === "move")
-            void action("move", { unit_id: selected.id, x, y });
-        else {
+        else if (kind === "attack" || kind === "skill") {
             const target = state.units.find(
                 (u) => u.hp > 0 && u.x === x && u.y === y,
             );
             if (target)
-                void action(mode, {
+                void action(kind === "skill" ? "skill" : "attack", {
                     unit_id: selected.id,
                     target_id: target.id,
                 });
+        } else {
+            void action("move", { unit_id: selected.id, x, y });
         }
     }
     async function copy() {
@@ -739,7 +805,25 @@ export default function Game() {
                                 )}
                             </div>
                         </aside>
-                        <div className="battle-canvas">
+                        <div
+                            className="battle-canvas"
+                            data-phase={state.phase}
+                            data-turn={state.turn_number}
+                            data-selected={selectedId ?? ""}
+                            data-hover={
+                                hover ? `${hover.x},${hover.y}` : ""
+                            }
+                            data-swap={swapHover ? "1" : ""}
+                            data-aim={aimPreview?.damage.text ?? ""}
+                            data-breakdown={
+                                aimPreview?.breakdown
+                                    ? `${aimPreview.breakdown.hit}/${aimPreview.breakdown.block}/${aimPreview.breakdown.side}`
+                                    : ""
+                            }
+                            data-faded={fadedIds.join(",")}
+                            data-moved={state.moved ? "1" : "0"}
+                            data-acted={state.acted ? "1" : "0"}
+                        >
                             <Suspense
                                 fallback={
                                     <div className="scene-loading">
@@ -750,15 +834,79 @@ export default function Game() {
                                 <Battlefield
                                     units={state.units}
                                     viewerId={viewer.id}
-                                    homeSide={
-                                        viewer.id === state.host_id
-                                            ? "south"
-                                            : "north"
-                                    }
+                                    homeSide={homeSide}
                                     selectedId={selectedId}
                                     onSelect={select}
                                     onTile={tile}
+                                    onHover={setHover}
                                     highlights={highlights}
+                                    hover={hover}
+                                    path={path}
+                                    ghost={ghost}
+                                    fadedIds={fadedIds}
+                                    swapHover={swapHover}
+                                    aim={
+                                        aimPreview && selected && hoveredUnit
+                                            ? {
+                                                  from: {
+                                                      x: selected.x,
+                                                      y: selected.y,
+                                                  },
+                                                  to: {
+                                                      x: hoveredUnit.x,
+                                                      y: hoveredUnit.y,
+                                                  },
+                                                  chip: aimPreview,
+                                                  skillTint: skillOn
+                                                      ? hoveredSkill?.effect ===
+                                                        "heal"
+                                                          ? "green"
+                                                          : "violet"
+                                                      : null,
+                                                  showFacingRing:
+                                                      cues.breakdown &&
+                                                      !skillOn &&
+                                                      Boolean(hoveredAttack),
+                                                  facing: hoveredUnit.facing,
+                                                  blockSide:
+                                                      hoveredAttack?.block_side,
+                                                  lethal: Boolean(
+                                                      hoveredAttack?.lethal ||
+                                                          hoveredSkill?.lethal,
+                                                  ),
+                                              }
+                                            : null
+                                    }
+                                    actionStrip={
+                                        canControl &&
+                                        cues.skill_strip &&
+                                        selected &&
+                                        character
+                                            ? {
+                                                  mode,
+                                                  skillName:
+                                                      character.skill.name,
+                                                  skillKind:
+                                                      character.skill.target !==
+                                                      "enemy"
+                                                          ? "heal"
+                                                          : "skill",
+                                                  onMode: setMode,
+                                              }
+                                            : null
+                                    }
+                                    facingControls={
+                                        canControl && selected
+                                            ? {
+                                                  facing: selected.facing,
+                                                  onFace: (facing) =>
+                                                      void action("face", {
+                                                          unit_id: selected.id,
+                                                          facing,
+                                                      }),
+                                              }
+                                            : null
+                                    }
                                     deployment={state.phase === "deployment"}
                                     interactive={!busy}
                                 />
@@ -776,7 +924,7 @@ export default function Game() {
                         <aside className="unit-panel">
                             {selected && character ? (
                                 <>
-                                    <div className="unit-portrait">
+                                    <div className="unit-portrait selected">
                                         <Portrait id={character.id} />
                                         <div>
                                             <span>
@@ -851,227 +999,12 @@ export default function Game() {
                                             {character.passive}
                                         </p>
                                         {state.phase === "battle" && (
-                                            <>
-                                                <div className="action-modes">
-                                                    <button
-                                                        type="button"
-                                                        className={
-                                                            mode === "move"
-                                                                ? "active"
-                                                                : ""
-                                                        }
-                                                        disabled={
-                                                            !canControl ||
-                                                            state.moved ||
-                                                            !!selected.statuses
-                                                                .root
-                                                        }
-                                                        onClick={() =>
-                                                            setMode("move")
-                                                        }
-                                                    >
-                                                        Move
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        className={
-                                                            mode === "attack"
-                                                                ? "active"
-                                                                : ""
-                                                        }
-                                                        disabled={
-                                                            !canControl ||
-                                                            state.acted
-                                                        }
-                                                        onClick={() =>
-                                                            setMode("attack")
-                                                        }
-                                                    >
-                                                        Attack
-                                                    </button>
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    className={`skill-button ${mode === "skill" ? "active" : ""}`}
-                                                    disabled={
-                                                        !canControl ||
-                                                        state.acted ||
-                                                        selected.cooldown > 0 ||
-                                                        selected.mana <
-                                                            character.skill.cost
-                                                    }
-                                                    onClick={() =>
-                                                        setMode("skill")
-                                                    }
-                                                >
-                                                    <span>
-                                                        {character.skill.name}
-                                                        <small>
-                                                            {
-                                                                character.skill
-                                                                    .cost
-                                                            }{" "}
-                                                            mana ·{" "}
-                                                            {selected.cooldown
-                                                                ? `${selected.cooldown} turns left`
-                                                                : "Ready"}
-                                                        </small>
-                                                    </span>
-                                                    <BoltIcon />
-                                                </button>
-                                                <p className="skill-description">
-                                                    {
-                                                        character.skill
-                                                            .description
-                                                    }
-                                                </p>
-                                                {canControl &&
-                                                    mode !== "move" &&
-                                                    !state.acted && (
-                                                        <div className="target-list">
-                                                            <p>
-                                                                {mode ===
-                                                                "attack"
-                                                                    ? `${character.accuracy}% hit · facing affects block`
-                                                                    : "Choose a target"}
-                                                            </p>
-                                                            {targets.length ? (
-                                                                targets.map(
-                                                                    (u) => (
-                                                                        <button
-                                                                            type="button"
-                                                                            disabled={
-                                                                                busy
-                                                                            }
-                                                                            key={
-                                                                                u.id
-                                                                            }
-                                                                            onClick={() =>
-                                                                                action(
-                                                                                    mode,
-                                                                                    {
-                                                                                        unit_id:
-                                                                                            selected.id,
-                                                                                        target_id:
-                                                                                            u.id,
-                                                                                    },
-                                                                                )
-                                                                            }
-                                                                        >
-                                                                            {
-                                                                                catalog[
-                                                                                    u
-                                                                                        .character_id
-                                                                                ]
-                                                                                    .name
-                                                                            }
-                                                                            <span>
-                                                                                {coordinate(
-                                                                                    u.x,
-                                                                                    u.y,
-                                                                                )}
-                                                                            </span>
-                                                                        </button>
-                                                                    ),
-                                                                )
-                                                            ) : (
-                                                                <p>
-                                                                    No targets
-                                                                    in range.
-                                                                </p>
-                                                            )}
-                                                        </div>
-                                                    )}
-                                                {canControl && (
-                                                    <label className="facing-label">
-                                                        Facing
-                                                        <select
-                                                            name="facing"
-                                                            value={
-                                                                selected.facing
-                                                            }
-                                                            disabled={busy}
-                                                            onChange={(e) =>
-                                                                action("face", {
-                                                                    unit_id:
-                                                                        selected.id,
-                                                                    facing: e
-                                                                        .target
-                                                                        .value,
-                                                                })
-                                                            }
-                                                        >
-                                                            {[
-                                                                "north",
-                                                                "east",
-                                                                "south",
-                                                                "west",
-                                                            ].map((f) => (
-                                                                <option
-                                                                    key={f}
-                                                                    value={f}
-                                                                >
-                                                                    {f
-                                                                        .charAt(
-                                                                            0,
-                                                                        )
-                                                                        .toUpperCase() +
-                                                                        f.slice(
-                                                                            1,
-                                                                        )}
-                                                                </option>
-                                                            ))}
-                                                        </select>
-                                                    </label>
-                                                )}
-                                            </>
+                                            <p className="skill-description">
+                                                {character.skill.name}
+                                                {": "}
+                                                {character.skill.description}
+                                            </p>
                                         )}
-                                        {highlights.length > 0 &&
-                                            (mode === "move" ||
-                                                state.phase ===
-                                                    "deployment") && (
-                                                <label>
-                                                    Destination
-                                                    <select
-                                                        name="destination"
-                                                        value={destination}
-                                                        onChange={(e) => {
-                                                            setDestination(
-                                                                e.target.value,
-                                                            );
-                                                            if (
-                                                                e.target.value
-                                                            ) {
-                                                                const [x, y] =
-                                                                    e.target.value
-                                                                        .split(
-                                                                            ",",
-                                                                        )
-                                                                        .map(
-                                                                            Number,
-                                                                        );
-                                                                tile(x, y);
-                                                            }
-                                                        }}
-                                                    >
-                                                        <option value="">
-                                                            Choose a highlighted
-                                                            tile
-                                                        </option>
-                                                        {highlights.map((t) => (
-                                                            <option
-                                                                key={`${t.x},${t.y}`}
-                                                                value={`${t.x},${t.y}`}
-                                                            >
-                                                                {coordinate(
-                                                                    t.x,
-                                                                    t.y,
-                                                                )}
-                                                            </option>
-                                                        ))}
-                                                    </select>
-                                                </label>
-                                            )}
                                         {!canControl &&
                                             state.phase === "battle" && (
                                                 <p className="hint">
@@ -1115,7 +1048,7 @@ export default function Game() {
                                         title={`${catalog[u.character_id].name} · ${u.hp} HP · recovery ${u.recovery}`}
                                         onClick={() => {
                                             setSelectedId(u.id);
-                                            setMode("move");
+                                            setMode("attack");
                                         }}
                                     >
                                         <Portrait id={u.character_id} />
