@@ -805,7 +805,25 @@ export default function Game() {
                                 )}
                             </div>
                         </aside>
-                        <div className="battle-canvas">
+                        <div
+                            className="battle-canvas"
+                            data-phase={state.phase}
+                            data-turn={state.turn_number}
+                            data-selected={selectedId ?? ""}
+                            data-hover={
+                                hover ? `${hover.x},${hover.y}` : ""
+                            }
+                            data-swap={swapHover ? "1" : ""}
+                            data-aim={aimPreview?.damage.text ?? ""}
+                            data-breakdown={
+                                aimPreview?.breakdown
+                                    ? `${aimPreview.breakdown.hit}/${aimPreview.breakdown.block}/${aimPreview.breakdown.side}`
+                                    : ""
+                            }
+                            data-faded={fadedIds.join(",")}
+                            data-moved={state.moved ? "1" : "0"}
+                            data-acted={state.acted ? "1" : "0"}
+                        >
                             <Suspense
                                 fallback={
                                     <div className="scene-loading">

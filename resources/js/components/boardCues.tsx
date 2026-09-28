@@ -305,7 +305,12 @@ export function AimLine({
 
 export function AimChipCard({ chip }: { chip: AimChip }) {
     return (
-        <Html position={[0, 1.7, 0]} center distanceFactor={8} style={{ pointerEvents: "none" }}>
+        <Html
+            position={[0, 1.7, 0]}
+            center
+            sprite
+            style={{ pointerEvents: "none" }}
+        >
             <div className="aim-chip">
                 <strong>{chip.landChance}%</strong>
                 {chip.breakdown && (
@@ -341,7 +346,12 @@ export function ActionStrip({
     onMode: (mode: "attack" | "skill") => void;
 }) {
     return (
-        <Html position={[0, 0.02, 0.62]} center distanceFactor={9}>
+        <Html
+            position={[0, 0.02, 0.62]}
+            center
+            sprite
+            style={{ pointerEvents: "none" }}
+        >
             <div className="board-action-strip">
                 <button
                     type="button"
