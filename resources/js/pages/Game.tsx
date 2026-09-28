@@ -11,6 +11,7 @@ import {
     useMemo,
     useRef,
     useState,
+    type ReactElement,
 } from "react";
 import {
     ArrowRightIcon,
@@ -34,6 +35,7 @@ import type {
     LegalMove,
     LegalSkillTarget,
     Shared,
+    State,
 } from "../types";
 import { aimChip } from "../lib/aimChip";
 import {
@@ -88,6 +90,43 @@ import { cameraForHome, fadedUnitIds } from "../lib/boardFade";
 import { cueVisibility } from "../lib/reducedBoard";
 const Battlefield = lazy(() => import("../components/Battlefield"));
 const coordinate = (x: number, y: number) => `${"ABCDEFGH"[x]}${8 - y}`;
+function renderDecidingText(deciding: NonNullable<State["deciding"]>) {
+    const names = deciding.names ?? [];
+    const pieces: Array<string | ReactElement> = [];
+    let rest = deciding.text;
+    const turn = rest.match(/^Turn (\d+): /);
+    if (turn) {
+        pieces.push(
+            <span key="turn" className="result-turn">
+                {`Turn ${turn[1]}:`}
+            </span>,
+        );
+        pieces.push(" ");
+        rest = rest.slice(turn[0].length);
+    }
+    let key = 0;
+    while (rest.length) {
+        let nextAt = rest.length;
+        let nextName = "";
+        for (const name of names) {
+            const at = rest.indexOf(name);
+            if (at !== -1 && at < nextAt) {
+                nextAt = at;
+                nextName = name;
+            }
+        }
+        if (!nextName) {
+            pieces.push(rest);
+            break;
+        }
+        if (nextAt > 0) {
+            pieces.push(rest.slice(0, nextAt));
+        }
+        pieces.push(<strong key={`name-${key++}`}>{nextName}</strong>);
+        rest = rest.slice(nextAt + nextName.length);
+    }
+    return pieces;
+}
 function facingFromPath(path: [number, number][]): string {
     if (path.length < 2) return "north";
     const [from, to] = path.slice(-2);
@@ -873,13 +912,27 @@ export default function Game() {
                                             ? "A worthy battle."
                                             : "The arena is closed."}
                                 </h2>
-                                <p>
-                                    {!state.winner_id
-                                        ? "Neither formation was locked before the deadline."
-                                        : state.winner_id === viewer.id
-                                          ? "Your warband stands triumphant."
-                                          : `${state.players.find((p) => p.id === state.winner_id)?.name || "Your rival"} takes the field.`}
-                                </p>
+                                {state.deciding?.text ? (
+                                    <div className="result-deciding">
+                                        <p className="result-deciding-line">
+                                            {renderDecidingText(state.deciding)}
+                                        </p>
+                                        {state.deciding.lesson?.text ? (
+                                            <div className="result-lesson">
+                                                <Eyebrow>Lesson</Eyebrow>
+                                                <p>{state.deciding.lesson.text}</p>
+                                            </div>
+                                        ) : null}
+                                    </div>
+                                ) : (
+                                    <p>
+                                        {!state.winner_id
+                                            ? "Neither formation was locked before the deadline."
+                                            : state.winner_id === viewer.id
+                                              ? "Your warband stands triumphant."
+                                              : `${state.players.find((p) => p.id === state.winner_id)?.name || "Your rival"} takes the field.`}
+                                    </p>
+                                )}
                             </div>
                             <div className="result-rewards">
                                 {practice ? (
@@ -1416,11 +1469,13 @@ export default function Game() {
                                     <ArrowRightIcon />
                                 </button>
                             ) : null}
+                            {state.deciding?.lesson ? null : (
                             <p>
                                 {state.phase === "battle"
                                     ? "Move + attack or cast, then end your turn."
                                     : "Protect your supports. Watch the flanks."}
                             </p>
+                            )}
                         </div>
                     </div>
                 </>

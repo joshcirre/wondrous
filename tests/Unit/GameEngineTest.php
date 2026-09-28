@@ -119,7 +119,8 @@ class GameEngineTest extends TestCase
         $s['units'][1]['facing'] = 'north';
         $rear = $e->apply($s, 1, 'attack', ['unit_id' => '1-warden', 'target_id' => '2-warden']);
         self::assertSame(116, $rear['units'][1]['hp']);
-        self::assertStringContainsString('accuracy roll', implode(' ', array_column($rear['log'], 'text')));
+        self::assertStringContainsString('Hit, 95% chance', implode(' ', array_column($rear['log'], 'text')));
+        self::assertStringContainsString("Alice's Iron Warden", implode(' ', array_column($rear['log'], 'text')));
     }
 
     public function test_missed_attack_still_consumes_action_and_recovery(): void
@@ -169,6 +170,26 @@ class GameEngineTest extends TestCase
         $this->engine()->apply($s, 1, 'skill', ['unit_id' => '1-knight', 'target_id' => '2-warden']);
     }
 
+    public function test_rear_finishing_blow_uses_the_rear_deciding_line(): void
+    {
+        $s = $this->duel();
+        $s['units'][1]['hp'] = 1;
+        $s['units'][1]['facing'] = 'north';
+        $s = $this->engine()->apply($s, 1, 'attack', ['unit_id' => '1-warden', 'target_id' => '2-warden']);
+        self::assertSame('finished', $s['phase']);
+        self::assertSame('decisive_defeat', $s['deciding']['rule']);
+        self::assertSame("Turn 1: Alice's Iron Warden defeated Bob's Iron Warden.", $s['deciding']['text']);
+        self::assertStringContainsString("Alice's Iron Warden: Hit, 95% chance.", implode("\n", array_column($s['log'], 'text')));
+        self::assertStringContainsString("Bob's Iron Warden was defeated.", implode("\n", array_column($s['log'], 'text')));
+    }
+
+    public function test_resign_uses_the_resign_deciding_line(): void
+    {
+        $s = $this->engine()->apply($this->duel(), 1, 'resign');
+        self::assertSame('resign', $s['deciding']['rule']);
+        self::assertSame('Alice resigned.', $s['deciding']['text']);
+    }
+
     public function test_elimination_finishes_and_rejects_future_actions(): void
     {
         $s = $this->duel('arcanist');
@@ -177,6 +198,10 @@ class GameEngineTest extends TestCase
         $s = $e->apply($s, 1, 'skill', ['unit_id' => '1-arcanist', 'target_id' => '2-warden']);
         self::assertSame('finished', $s['phase']);
         self::assertSame(1, $s['winner_id']);
+        self::assertSame('elimination', $s['finish_reason']);
+        self::assertSame('decisive_defeat', $s['deciding']['rule']);
+        self::assertSame("Turn 1: Alice's Violet Arcanist defeated Bob's Iron Warden.", $s['deciding']['text']);
+        self::assertStringContainsString("Alice's Violet Arcanist", implode(' ', array_column($s['log'], 'text')));
         $this->expectException(GameRuleException::class);
         $e->apply($s, 1, 'end_turn');
     }
@@ -268,6 +293,10 @@ class GameEngineTest extends TestCase
         self::assertSame('finished', $s['phase']);
         self::assertSame(1, $s['winner_id']);
         self::assertNull($s['turn_player_id']);
+        self::assertSame('burn', $s['story']['defeats'][0]['cause'] ?? null);
+        self::assertSame('decisive_defeat', $s['deciding']['rule']);
+        self::assertSame("Turn 1: Bob's Crown Herald fell to burn.", $s['deciding']['text']);
+        self::assertStringNotContainsString('Ember Witch', $s['deciding']['text']);
     }
 
     public function test_drain_uses_actual_damage_and_cannot_overheal(): void

@@ -133,30 +133,26 @@ describe("statusBadgeRow", () => {
         });
     }
 
-    for (const count of [1, 2, 3, 4]) {
-        it(`keeps a ${count}-badge row within about one tile`, () => {
-            const keys = ["stun", "root", "burn", "ward"] as const;
-            const statuses = Object.fromEntries(
-                keys.slice(0, Math.max(0, count - 1)).map((key, i) => [key, i + 1]),
+    it("keeps every chip at one readable size instead of shrinking with the row", () => {
+        const one = badgeChipSize(1);
+        const five = badgeChipSize(5);
+        assert.equal(one.width, five.width);
+        assert.equal(one.height, five.height);
+        assert.equal(one.width, 0.28);
+        assert.ok(one.width >= 0.26);
+        for (const count of [1, 2, 3]) {
+            assert.ok(badgeRowWorldWidth(count) <= BADGE_ROW_MAX_W + 1e-6);
+        }
+        for (const count of [1, 2, 3, 4, 5]) {
+            const xs = Array.from({ length: count }, (_, index) =>
+                badgeWorldX(index, count),
             );
-            const row = statusBadgeRow({
-                recovery: 1,
-                statuses,
-                facts,
-            });
-            assert.equal(row.length, count);
-            const width = badgeRowWorldWidth(count);
-            assert.ok(
-                width <= BADGE_ROW_MAX_W + 1e-6,
-                `row width ${width} exceeds one tile (${BADGE_ROW_MAX_W})`,
-            );
-            const xs = row.map((_, index) => badgeWorldX(index, count));
             for (let i = 1; i < xs.length; i++) {
                 assert.ok(xs[i] > xs[i - 1], "chips should stay in order");
             }
             assert.ok(Math.abs((xs[0] + xs[xs.length - 1]) / 2) < 1e-6);
-        });
-    }
+        }
+    });
 
     it("offsets chips on local X only so one row billboard stays horizontal", () => {
         const count = 5;
