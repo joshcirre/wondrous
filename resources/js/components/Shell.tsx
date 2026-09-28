@@ -25,16 +25,17 @@ export default function Shell({
     children: ReactNode;
     wide?: boolean;
 }) {
-    const { auth, flash } = usePage<Shared>().props;
+    const { auth, flash, progression } = usePage<Shared>().props;
     const [open, setOpen] = useState(false);
     const url = usePage().url;
+    const unlocks = progression?.unlocks;
     const links = [
         ["/", "The arena"],
-        ["/collection", "Your warband"],
-        ["/rankings", "Rankings"],
+        ...(unlocks?.loadouts ? [["/collection", "Your warband"] as const] : []),
+        ...(unlocks?.rankings ? [["/rankings", "Rankings"] as const] : []),
         ["/replays", "Replays"],
         ["/guide", "Field guide"],
-        ...(auth.user ? [["/profile", "Profile"]] : []),
+        ...(auth.user ? [["/profile", "Profile"] as const] : []),
     ];
     return (
         <div className="app-shell isolate">
@@ -54,6 +55,7 @@ export default function Shell({
                 <div className="account-nav">
                     {auth.user && (
                         <>
+                            {unlocks?.crowns && (
                             <div
                                 className="wallet"
                                 title="Earn crowns through battle"
@@ -62,6 +64,7 @@ export default function Shell({
                                 {auth.user.currency}
                                 <span>crowns</span>
                             </div>
+                            )}
                             <Link
                                 href="/profile"
                                 className="account-avatar profile-avatar"

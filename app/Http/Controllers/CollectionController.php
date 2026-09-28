@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Game\CharacterCatalog;
+use App\Game\Progression;
 use App\Models\Game;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -21,6 +22,7 @@ class CollectionController extends Controller
 
     public function loadout(Request $r)
     {
+        abort_unless(Progression::for($r->user())['unlocks']['loadouts'], 422, Progression::LOADOUTS_HINT);
         $v = $r->validate(['cards' => 'present|array|list|max:4', 'cards.*' => ['string', 'distinct', Rule::in($r->user()->collection ?? [])]]);
         $r->user()->forceFill(['loadout' => $v['cards']])->save();
 
@@ -29,6 +31,7 @@ class CollectionController extends Controller
 
     public function pull(Request $r)
     {
+        abort_unless(Progression::for($r->user())['unlocks']['loadouts'], 422, Progression::LOADOUTS_HINT);
         $result = Cache::lock('collection:'.$r->user()->id, 15)->block(5, fn () => DB::transaction(function () use ($r) {
             $user = User::whereKey($r->user()->id)->lockForUpdate()->firstOrFail();
             abort_if($user->currency < 100, 422, 'You need 100 crowns to open a summon.');
@@ -81,8 +84,12 @@ class CollectionController extends Controller
         }));
     }
 
-    public function rankings()
+    public function rankings(Request $r)
     {
+        if (! Progression::for($r->user())['unlocks']['rankings']) {
+            return redirect('/');
+        }
+
         return Inertia::render('Rankings', ['catalog' => CharacterCatalog::all(), 'players' => User::select('id', 'name', 'avatar_character_id', 'rating', 'wins', 'losses')->orderByDesc('rating')->orderByDesc('wins')->limit(100)->get()]);
     }
 }

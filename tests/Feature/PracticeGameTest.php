@@ -30,6 +30,7 @@ class PracticeGameTest extends TestCase
     public function test_practice_is_private_resumable_and_independent_of_live_match(): void
     {
         $user = User::factory()->create();
+        $this->ensureProgressionUnlocked($user);
         $this->actingAs($user)->postJson('/games', ['name' => 'Live match', 'ranked' => true])->assertCreated();
         $game = $this->practice($user);
         self::assertFalse($game->ranked);
@@ -39,7 +40,7 @@ class PracticeGameTest extends TestCase
         self::assertSame('draft', $game->phase);
         self::assertCount(12, $game->visibleTo($user->id)['state']['offers'][$user->id]);
         self::assertSame($game->id, $this->practice($user)->id);
-        self::assertSame(2, Game::count());
+        self::assertSame(Game::where('phase', '!=', 'finished')->count(), 2);
         $this->getJson('/games/'.$game->code.'/state')->assertOk()->assertJsonPath('game.mode', 'practice');
         $outsider = User::factory()->create();
         $this->actingAs($outsider)->get('/games/'.$game->code)->assertForbidden();
@@ -51,6 +52,7 @@ class PracticeGameTest extends TestCase
     public function test_computer_responds_through_draft_deployment_and_battle_and_cannot_be_controlled(): void
     {
         $user = User::factory()->create();
+        $this->ensureProgressionUnlocked($user);
         $game = $this->practice($user);
         foreach (['ranger', 'arcanist', 'cleric', 'rogue', 'pyromancer', 'druid'] as $id) {
             $this->act($game, 'draft', ['character_id' => $id]);
@@ -78,6 +80,7 @@ class PracticeGameTest extends TestCase
     public function test_practice_cannot_change_stats_or_award_currency_or_cards_and_has_a_replay(): void
     {
         $user = User::factory()->create();
+        $this->ensureProgressionUnlocked($user);
         $before = $user->fresh()->only('rating', 'currency', 'wins', 'losses', 'collection');
         $game = $this->practice($user);
         for ($i = 0; $i < 6; $i++) {
