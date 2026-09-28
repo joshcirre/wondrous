@@ -23,6 +23,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/games', [GameController::class, 'create'])->middleware('throttle:10,1,create');
     Route::get('/games/{code}', [GameController::class, 'show']);
     Route::get('/games/{code}/state', [GameController::class, 'state']);
+    Route::get('/games/{code}/events', [GameController::class, 'events']);
     Route::get('/games/{code}/replay-data', [GameController::class, 'replayData']);
     Route::get('/games/{code}/replay', [GameController::class, 'replay']);
     Route::get('/replays', [GameController::class, 'replayArchive']);

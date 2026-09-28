@@ -20,6 +20,7 @@ final class GameEngine
 
     public function apply(array $s, int $actorId, string $type, array $payload = []): array
     {
+        $s['events'] = [];
         if ($s['phase'] === 'finished') {
             throw new GameRuleException('This match has finished.');
         }
@@ -49,6 +50,7 @@ final class GameEngine
             $s['winner_id'] = $this->opponent($s, $actorId);
             $s['phase'] = 'finished';
             $this->log($s, ($actorId === ComputerOpponent::ID ? 'Practice opponent' : 'Player '.$actorId).' resigned.');
+            $this->emit($s, 'game_over', ['winner_id' => $s['winner_id']]);
 
             return $s;
         }
@@ -107,6 +109,7 @@ final class GameEngine
                 $s['turn_player_id'] = $s['host_id'];
                 $s['turn_number'] = 1;
                 $this->log($s, 'Battle begins.');
+                $this->emit($s, 'turn_start', ['player_id' => $s['host_id'], 'turn_number' => 1]);
             }
 
             return $s;
@@ -128,17 +131,22 @@ final class GameEngine
         if ($type === 'face') {
             $f = $payload['facing'] ?? null;
             $this->require(in_array($f, ['north', 'east', 'south', 'west'], true), 'Invalid facing.');
+            $from = $s['units'][$i]['facing'];
             $s['units'][$i]['facing'] = $f;
+            $this->emit($s, 'face', ['unit_id' => $u['id'], 'owner_id' => $u['owner_id'], 'from' => $from, 'to' => $f]);
         } elseif ($type === 'move') {
             $this->require(! $s['moved'], 'You already moved this turn.');
             $this->require(($u['statuses']['root'] ?? 0) === 0, 'This character is rooted.');
             [$x,$y] = $this->tile($payload);
             $this->require($this->reachable($s, $u, $x, $y, $c['move']), 'Destination is blocked or beyond movement range.');
+            $from = [$u['x'], $u['y']];
+            $path = $this->path($s, $u, $x, $y, $c['move']) ?? [$from, [$x, $y]];
             $s['units'][$i]['facing'] = $this->direction($x - $u['x'], $y - $u['y']);
             $s['units'][$i]['x'] = $x;
             $s['units'][$i]['y'] = $y;
             $s['moved'] = true;
             $this->log($s, $c['name'].' moved.');
+            $this->emit($s, 'move', ['unit_id' => $u['id'], 'owner_id' => $u['owner_id'], 'from' => $from, 'to' => [$x, $y], 'path' => $path]);
         } else {
             $this->require(! $s['acted'], 'You already attacked or cast this turn.');
             $skill = $type === 'skill';
@@ -189,41 +197,71 @@ final class GameEngine
         $c = CharacterCatalog::get($id);
         $this->log($s, $c['name'].' used '.$c['skill']['name'].'.');
         $amount = $this->skillAmount($s, $i, $j);
+        $targetIds = [];
+        $amounts = [];
+        $statuses = [];
         switch ($id) {
             case 'warden': $s['units'][$j]['statuses']['ward'] = 2;
+                $targetIds[] = $s['units'][$j]['id'];
+                $statuses[$s['units'][$j]['id']] = ['ward' => 2];
                 break;
-            case 'cleric': $this->heal($s, $j, $amount);
+            case 'cleric':
+                $before = $s['units'][$j]['hp'];
+                $this->heal($s, $j, $amount);
+                $targetIds[] = $s['units'][$j]['id'];
+                $amounts[$s['units'][$j]['id']] = $s['units'][$j]['hp'] - $before;
                 break;
             case 'druid':
+                $before = $s['units'][$j]['hp'];
                 $this->heal($s, $j, $amount);
                 foreach (['burn', 'root', 'stun'] as $status) {
                     unset($s['units'][$j]['statuses'][$status]);
-                } break;
+                }
+                $targetIds[] = $s['units'][$j]['id'];
+                $amounts[$s['units'][$j]['id']] = $s['units'][$j]['hp'] - $before;
+                break;
             case 'herald':
                 foreach ($s['units'] as $k => $u) {
                     if ($u['owner_id'] === $s['units'][$i]['owner_id'] && $u['hp'] > 0) {
+                        $before = $s['units'][$k]['hp'];
                         $this->heal($s, $k, $amount);
                         $s['units'][$k]['mana'] = min($u['max_mana'], $s['units'][$k]['mana'] + $amount);
+                        $targetIds[] = $u['id'];
+                        $amounts[$u['id']] = $s['units'][$k]['hp'] - $before;
                     }
                 } break;
             default:
                 $dealt = $this->damage($s, $i, $j, $amount, in_array($id, ['ranger', 'arcanist', 'rogue', 'revenant'], true), false);
+                $targetIds[] = $s['units'][$j]['id'];
+                $amounts[$s['units'][$j]['id']] = $dealt;
                 if ($dealt > 0 && $s['units'][$j]['hp'] > 0) {
                     if ($id === 'knight') {
                         $s['units'][$j]['statuses']['stun'] = 1;
+                        $statuses[$s['units'][$j]['id']]['stun'] = 1;
                     }
                     if (in_array($id, ['pikeman', 'frostweaver'], true)) {
                         $s['units'][$j]['statuses']['root'] = 2;
+                        $statuses[$s['units'][$j]['id']]['root'] = 2;
                     }
                     if ($id === 'pyromancer') {
                         $s['units'][$j]['statuses']['burn'] = 2;
                         $s['units'][$j]['burn_source'] = $s['units'][$i]['owner_id'];
+                        $statuses[$s['units'][$j]['id']]['burn'] = 2;
                     }
                 }
                 if ($id === 'revenant') {
                     $this->heal($s, $i, $dealt);
+                    $amounts[$s['units'][$i]['id']] = $dealt;
                 }
         }
+        $this->emit($s, 'skill', [
+            'unit_id' => $s['units'][$i]['id'],
+            'owner_id' => $s['units'][$i]['owner_id'],
+            'skill' => $c['skill']['name'],
+            'target_ids' => $targetIds,
+            'amounts' => $amounts,
+            'statuses' => $statuses,
+        ]);
     }
 
     private function damage(array &$s, int $i, int $j, int $amount, bool $pierce, bool $roll): int
@@ -232,11 +270,19 @@ final class GameEngine
         $t = $s['units'][$j];
         $c = CharacterCatalog::get($u['character_id']);
         $d = CharacterCatalog::get($t['character_id']);
+        $factor = $this->blockFactor($u, $t);
+        $side = $factor === 1.0 ? 'front' : ($factor === 0.0 ? 'rear' : 'side');
+        $chance = (int) floor($d['block'] * $factor);
         if ($roll) {
             $hit = ($this->random)(1, 100);
             $this->log($s, $c['name'].' accuracy roll '.$hit.' / '.$c['accuracy'].'.');
             if ($hit > $c['accuracy']) {
                 $this->log($s, 'Attack missed '.$d['name'].'.');
+                $this->emit($s, 'attack', [
+                    'unit_id' => $u['id'], 'owner_id' => $u['owner_id'], 'target_id' => $t['id'], 'target_owner_id' => $t['owner_id'],
+                    'side' => $side, 'roll' => ['accuracy' => $c['accuracy'], 'hit_roll' => $hit, 'block_chance' => $chance, 'block_roll' => null],
+                    'outcome' => 'miss', 'damage' => 0,
+                ]);
 
                 return 0;
             }
@@ -245,6 +291,11 @@ final class GameEngine
             $this->log($s, $d['name'].' block roll '.$block.' / '.$chance.'.');
             if ($block <= $chance) {
                 $this->log($s, $d['name'].' blocked the attack.');
+                $this->emit($s, 'attack', [
+                    'unit_id' => $u['id'], 'owner_id' => $u['owner_id'], 'target_id' => $t['id'], 'target_owner_id' => $t['owner_id'],
+                    'side' => $side, 'roll' => ['accuracy' => $c['accuracy'], 'hit_roll' => $hit, 'block_chance' => $chance, 'block_roll' => $block],
+                    'outcome' => 'block', 'damage' => 0,
+                ]);
 
                 return 0;
             }
@@ -252,6 +303,13 @@ final class GameEngine
         $damage = min($t['hp'], max(1, $amount - ($pierce ? 0 : $this->armorFor($s, $j))));
         $s['units'][$j]['hp'] -= $damage;
         $this->log($s, $c['name'].' dealt '.$damage.' damage to '.$d['name'].'.');
+        if ($roll) {
+            $this->emit($s, 'attack', [
+                'unit_id' => $u['id'], 'owner_id' => $u['owner_id'], 'target_id' => $t['id'], 'target_owner_id' => $t['owner_id'],
+                'side' => $side, 'roll' => ['accuracy' => $c['accuracy'], 'hit_roll' => $hit, 'block_chance' => $chance, 'block_roll' => $block],
+                'outcome' => 'hit', 'damage' => $damage,
+            ]);
+        }
         if ($s['units'][$j]['hp'] === 0) {
             $this->death($s, $j, $u['owner_id']);
         }
@@ -262,6 +320,7 @@ final class GameEngine
     private function death(array &$s, int $j, int $killer): void
     {
         $this->log($s, CharacterCatalog::get($s['units'][$j]['character_id'])['name'].' was defeated.');
+        $this->emit($s, 'death', ['unit_id' => $s['units'][$j]['id'], 'owner_id' => $s['units'][$j]['owner_id'], 'by' => $killer]);
         if ($s['units'][$j]['character_id'] === 'herald') {
             foreach ($s['units'] as $k => $u) {
                 if ($u['owner_id'] === $killer && $u['hp'] > 0) {
@@ -284,6 +343,7 @@ final class GameEngine
                 if (($u['statuses']['burn'] ?? 0) > 0) {
                     $s['units'][$i]['hp'] = max(0, $u['hp'] - 8);
                     $this->log($s, CharacterCatalog::get($u['character_id'])['name'].' suffered 8 burn damage.');
+                    $this->emit($s, 'status_tick', ['unit_id' => $u['id'], 'owner_id' => $u['owner_id'], 'status' => 'burn', 'amount' => 8]);
                     if ($s['units'][$i]['hp'] === 0) {
                         $this->death($s, $i, $u['burn_source'] ?? $this->opponent($s, $actorId));
                     }
@@ -291,6 +351,7 @@ final class GameEngine
                 foreach ($u['statuses'] as $key => $duration) {
                     if ($duration <= 1) {
                         unset($s['units'][$i]['statuses'][$key]);
+                        $this->emit($s, 'status_tick', ['unit_id' => $u['id'], 'owner_id' => $u['owner_id'], 'status' => $key]);
                     } else {
                         $s['units'][$i]['statuses'][$key] = $duration - 1;
                     }
@@ -301,6 +362,7 @@ final class GameEngine
         if ($s['phase'] !== 'finished') {
             $s['turn_player_id'] = $this->opponent($s, $actorId);
             $s['turn_number']++;
+            $this->emit($s, 'turn_start', ['player_id' => $s['turn_player_id'], 'turn_number' => $s['turn_number']]);
         }
         $s['active_unit_id'] = null;
         $s['moved'] = false;
@@ -316,6 +378,7 @@ final class GameEngine
                 $s['winner_id'] = $this->opponent($s, $p['id']);
                 $s['turn_player_id'] = null;
                 $this->log($s, ($s['winner_id'] === ComputerOpponent::ID ? 'Practice opponent' : 'Player '.$s['winner_id']).' wins by elimination.');
+                $this->emit($s, 'game_over', ['winner_id' => $s['winner_id']]);
 
                 return;
             }
@@ -601,6 +664,11 @@ final class GameEngine
             'herald' => 12,
             'warden' => 12,
         };
+    }
+
+    private function emit(array &$s, string $type, array $payload = []): void
+    {
+        $s['events'][] = ['type' => $type] + $payload;
     }
 
     private function pool(array $loadout): array

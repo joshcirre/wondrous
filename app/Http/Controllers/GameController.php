@@ -50,6 +50,28 @@ class GameController extends Controller
         return response()->json(['game' => $g->visibleTo($r->user()->id), 'catalog' => CharacterCatalog::all(), 'viewer_id' => $r->user()->id]);
     }
 
+    public function events(Request $r, string $code)
+    {
+        $since = (int) ($r->validate(['since' => 'sometimes|integer|min:0'])['since'] ?? 0);
+        $g = Game::where('code', strtoupper($code))->firstOrFail();
+        abort_unless($g->hasPlayer($r->user()->id), 403);
+        $g = app(MatchService::class)->expire($g);
+        $viewer = $r->user()->id;
+        $events = [];
+        $records = DB::table('game_records')->where('game_id', $g->id)->where('version', '>', $since)->orderBy('version')->get();
+        foreach ($records as $record) {
+            $state = json_decode($record->state, true) ?? [];
+            foreach (array_values(Game::visibleEvents($state['events'] ?? [], $viewer, $g->state)) as $index => $event) {
+                $events[] = ['version' => (int) $record->version, 'index' => $index] + $event;
+            }
+            if (count($events) >= Game::EVENTS_PAGE) {
+                return response()->json(['events' => $events]);
+            }
+        }
+
+        return response()->json(['events' => $events]);
+    }
+
     public function action(Request $r, string $code, MatchService $matches)
     {
         $v = $r->validate(['type' => 'required|string|in:join,draft,deploy,ready,move,attack,skill,face,end_turn,resign', 'version' => 'required|integer|min:0']);
