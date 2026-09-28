@@ -27,6 +27,7 @@ import { Eyebrow, ErrorBanner } from "../components/Shell";
 import CharacterCard, { Portrait } from "../components/CharacterCard";
 import { api, errorMessage, realtime } from "../api";
 import type { Game as GameType, Shared, Unit } from "../types";
+import { battleTargets } from "../lib/boardClick";
 const Battlefield = lazy(() => import("../components/Battlefield"));
 const coordinate = (x: number, y: number) => `${"ABCDEFGH"[x]}${8 - y}`;
 function reachable(unit: Unit, units: Unit[], range: number) {
@@ -179,24 +180,27 @@ export default function Game() {
         !selected.statuses.stun &&
         state.phase === "battle",
     );
-    const targets = useMemo(() => {
-        if (!selected || !character || !canControl || mode === "move")
-            return [];
-        const skill = mode === "skill";
-        const target = skill ? character.skill.target : "enemy";
-        const range = skill ? character.skill.range : character.range;
-        return state.units.filter(
-            (u) =>
-                u.hp > 0 &&
-                (target === "self"
-                    ? u.id === selected.id
-                    : target === "enemy"
-                      ? u.owner_id !== viewer.id
-                      : u.owner_id === viewer.id) &&
-                Math.abs(u.x - selected.x) + Math.abs(u.y - selected.y) <=
-                    range,
-        );
-    }, [selected, character, canControl, mode, state.units, viewer.id]);
+    const targets = useMemo(
+        () =>
+            battleTargets({
+                selected,
+                character,
+                canControl,
+                mode,
+                acted: state.acted,
+                units: state.units,
+                viewerId: viewer.id,
+            }),
+        [
+            selected,
+            character,
+            canControl,
+            mode,
+            state.acted,
+            state.units,
+            viewer.id,
+        ],
+    );
     const highlights = useMemo(() => {
         if (!selected) return [];
         if (
@@ -235,16 +239,7 @@ export default function Game() {
         targets,
         character,
     ]);
-    function select(id: string) {
-        if (
-            selected &&
-            canControl &&
-            mode !== "move" &&
-            targets.some((u) => u.id === id)
-        ) {
-            void action(mode, { unit_id: selected.id, target_id: id });
-            return;
-        }
+    function select(id: string | null) {
         setSelectedId(id);
         setMode("move");
         setDestination("");

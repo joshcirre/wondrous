@@ -1,6 +1,7 @@
-import { Suspense, useEffect, useLayoutEffect, useMemo, useRef } from "react";
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
+import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { Billboard, OrbitControls } from "@react-three/drei";
+import { collectBoardHits, resolveBoardClick } from "../lib/boardClick";
 import {
     CanvasTexture,
     Color,
@@ -34,7 +35,7 @@ type Props = {
     units: Unit[];
     viewerId: number;
     selectedId: string | null;
-    onSelect: (id: string) => void;
+    onSelect: (id: string | null) => void;
     onTile: (x: number, y: number) => void;
     highlights?: Array<{ x: number; y: number; kind?: string }>;
     deployment?: boolean;
@@ -43,6 +44,17 @@ type Props = {
 };
 const teal = "#62dfc2",
     red = "#eb8173";
+
+function NonInteractive({ children }: { children: ReactNode }) {
+    const visuals = useRef<Group>(null);
+    useLayoutEffect(() => {
+        visuals.current?.traverse((object) => {
+            object.raycast = () => {};
+        });
+    });
+    return <group ref={visuals}>{children}</group>;
+}
+
 function FitCamera({ homeSide }: { homeSide: "north" | "south" }) {
     const { camera, size } = useThree();
     useLayoutEffect(() => {
@@ -61,13 +73,13 @@ function Pawn({
     unit,
     selected,
     friendly,
-    onSelect,
+    onBoardPointer,
     interactive,
 }: {
     unit: Unit;
     selected: boolean;
     friendly: boolean;
-    onSelect: Props["onSelect"];
+    onBoardPointer: (e: ThreeEvent<MouseEvent>) => void;
     interactive: boolean;
 }) {
     const group = useRef<Group>(null);
@@ -103,75 +115,97 @@ function Pawn({
         }
     });
     return (
-        <group
-            ref={group}
-            position={initialPosition.current}
-            onClick={(e) => {
-                e.stopPropagation();
-                if (interactive && unit.hp > 0) onSelect(unit.id);
-            }}
-            onPointerOver={(e) => {
-                e.stopPropagation();
-                if (interactive) document.body.style.cursor = "pointer";
-            }}
-            onPointerOut={() => {
-                document.body.style.cursor = "auto";
-            }}
-        >
-            {selected && unit.hp > 0 && (
-                <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
-                    <ringGeometry args={[0.37, 0.44, 40]} />
+        <group ref={group} position={initialPosition.current}>
+            {unit.hp > 0 && (
+                <mesh
+                    userData={{
+                        boardKind: "pawn",
+                        unitId: unit.id,
+                        x: unit.x,
+                        y: unit.y,
+                    }}
+                    rotation={[-Math.PI / 2, 0, 0]}
+                    position={[0, 0.06, 0]}
+                    onClick={onBoardPointer}
+                    onPointerOver={(e) => {
+                        e.stopPropagation();
+                        if (interactive) document.body.style.cursor = "pointer";
+                    }}
+                    onPointerOut={() => {
+                        document.body.style.cursor = "auto";
+                    }}
+                >
+                    <circleGeometry args={[0.36, 24]} />
                     <meshBasicMaterial
-                        color="#ffe4a0"
                         transparent
-                        opacity={0.95}
+                        opacity={0}
+                        depthWrite={false}
                     />
                 </mesh>
             )}
-            <group
-                ref={facing}
-                rotation={initialDirection.current}
-                visible={unit.hp > 0}
-            >
-                <Miniature
-                    id={unit.character_id}
-                    color={friendly ? teal : red}
-                />
-                <mesh
-                    rotation={[-Math.PI / 2, 0, Math.PI]}
-                    position={[0, 0.026, -0.37]}
-                >
-                    <circleGeometry args={[0.055, 3]} />
-                    <meshBasicMaterial color={friendly ? teal : red} />
-                </mesh>
-            </group>
-            <CombatEffect hp={unit.hp} mana={unit.mana} />
-            <Billboard visible={unit.hp > 0} position={[0, 1.37, 0]}>
-                <mesh>
-                    <planeGeometry args={[0.55, 0.067]} />
-                    <meshBasicMaterial color="#192623" depthTest={false} />
-                </mesh>
-                <mesh
-                    position={[-0.25 * (1 - unit.hp / unit.max_hp), 0, 0.002]}
-                >
-                    <planeGeometry
-                        args={[
-                            0.5 * Math.max(0.01, unit.hp / unit.max_hp),
-                            0.031,
-                        ]}
-                    />
-                    <meshBasicMaterial
-                        color={friendly ? teal : red}
-                        depthTest={false}
-                    />
-                </mesh>
-                {(unit.recovery ?? 0) > 0 && (
-                    <mesh position={[0.34, 0, 0]}>
-                        <circleGeometry args={[0.04, 8]} />
-                        <meshBasicMaterial color="#e4ba72" depthTest={false} />
+            <NonInteractive>
+                {selected && unit.hp > 0 && (
+                    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
+                        <ringGeometry args={[0.37, 0.44, 40]} />
+                        <meshBasicMaterial
+                            color="#ffe4a0"
+                            transparent
+                            opacity={0.95}
+                        />
                     </mesh>
                 )}
-            </Billboard>
+                <group
+                    ref={facing}
+                    rotation={initialDirection.current}
+                    visible={unit.hp > 0}
+                >
+                    <Miniature
+                        id={unit.character_id}
+                        color={friendly ? teal : red}
+                    />
+                    <mesh
+                        rotation={[-Math.PI / 2, 0, Math.PI]}
+                        position={[0, 0.026, -0.37]}
+                    >
+                        <circleGeometry args={[0.055, 3]} />
+                        <meshBasicMaterial color={friendly ? teal : red} />
+                    </mesh>
+                </group>
+                <CombatEffect hp={unit.hp} mana={unit.mana} />
+                <Billboard visible={unit.hp > 0} position={[0, 1.37, 0]}>
+                    <mesh>
+                        <planeGeometry args={[0.55, 0.067]} />
+                        <meshBasicMaterial color="#192623" depthTest={false} />
+                    </mesh>
+                    <mesh
+                        position={[
+                            -0.25 * (1 - unit.hp / unit.max_hp),
+                            0,
+                            0.002,
+                        ]}
+                    >
+                        <planeGeometry
+                            args={[
+                                0.5 * Math.max(0.01, unit.hp / unit.max_hp),
+                                0.031,
+                            ]}
+                        />
+                        <meshBasicMaterial
+                            color={friendly ? teal : red}
+                            depthTest={false}
+                        />
+                    </mesh>
+                    {(unit.recovery ?? 0) > 0 && (
+                        <mesh position={[0.34, 0, 0]}>
+                            <circleGeometry args={[0.04, 8]} />
+                            <meshBasicMaterial
+                                color="#e4ba72"
+                                depthTest={false}
+                            />
+                        </mesh>
+                    )}
+                </Billboard>
+            </NonInteractive>
         </group>
     );
 }
@@ -617,6 +651,21 @@ function Scene({
     interactive = true,
     homeSide = "south",
 }: Props) {
+    const onBoardPointer = (e: ThreeEvent<MouseEvent>) => {
+        e.stopPropagation();
+        if (!interactive) return;
+        const selected = units.find((unit) => unit.id === selectedId);
+        const decision = resolveBoardClick(
+            collectBoardHits(e.intersections),
+            highlights,
+            selected
+                ? { id: selected.id, x: selected.x, y: selected.y }
+                : null,
+        );
+        if (decision.type === "tile") onTile(decision.x, decision.y);
+        else if (decision.type === "select") onSelect(decision.unitId);
+        else if (decision.type === "deselect") onSelect(null);
+    };
     return (
         <>
             <color attach="background" args={["#9cbfc9"]} />
@@ -697,10 +746,8 @@ function Scene({
                     <group key={i} position={[x - 3.5, 0, y - 3.5]}>
                         <mesh
                             receiveShadow
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                if (interactive) onTile(x, y);
-                            }}
+                            userData={{ boardKind: "tile", x, y }}
+                            onClick={onBoardPointer}
                             onPointerOver={() => {
                                 if (interactive)
                                     document.body.style.cursor = "pointer";
@@ -717,6 +764,21 @@ function Scene({
                                 roughness={0.93}
                             />
                         </mesh>
+                        {h && (
+                            <mesh
+                                userData={{ boardKind: "tile", x, y }}
+                                rotation={[-Math.PI / 2, 0, 0]}
+                                position={[0, 0.22, 0]}
+                                onClick={onBoardPointer}
+                            >
+                                <planeGeometry args={[0.96, 0.96]} />
+                                <meshBasicMaterial
+                                    transparent
+                                    opacity={0}
+                                    depthWrite={false}
+                                />
+                            </mesh>
+                        )}
                         {h && (
                             <mesh
                                 rotation={[-Math.PI / 2, 0, 0]}
@@ -779,7 +841,7 @@ function Scene({
                     unit={unit}
                     selected={selectedId === unit.id}
                     friendly={unit.owner_id === viewerId}
-                    onSelect={onSelect}
+                    onBoardPointer={onBoardPointer}
                     interactive={interactive}
                 />
             ))}
