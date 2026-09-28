@@ -20,6 +20,7 @@ final class LessonCatalog
     public const DECIDING = [
         'decisive_defeat' => 'Turn {n}: {attacker} defeated {defender}.',
         'decisive_defeat_consequence' => 'Turn {n}: {attacker} defeated {defender}, {consequence}.',
+        'decisive_defeat_burn' => 'Turn {n}: {defender} fell to burn.',
         'flanking_hit' => '{attacker} dealt {damage} to {defender} from behind.',
         'flanking_backstab' => '{attacker} dealt {damage} to {defender} with Backstab.',
         'biggest_hit' => '{attacker} dealt {damage} to {defender}.',
@@ -44,7 +45,7 @@ final class LessonCatalog
         'rear_hits' => 'They reached your rear twice. Face the threat before you strike.',
         'blocked' => 'Your attacks were blocked twice. Find the rear, or a skill that always hits.',
         'resting_defeat' => 'A champion fell while resting. Do not leave them spent in range.',
-        'fallback' => 'One champion. Then a gold tile. Then an enemy in range.',
+        'fallback' => 'Keep your champions close enough to cover each other.',
     ];
 
     public static function isHealer(string $characterId): bool

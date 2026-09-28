@@ -1877,6 +1877,9 @@ small {
     color: var(--muted);
     font-size: 0.9rem;
 }
+.result-banner .eyebrow {
+    color: var(--gold);
+}
 .result-deciding {
     margin: 8px 0 0;
     padding: 0;
@@ -1907,10 +1910,11 @@ small {
     margin-top: 10px;
     animation: result-copy-in 140ms ease both;
 }
-.result-lesson .eyebrow {
+.result-banner .result-lesson .eyebrow {
     margin-bottom: 2px;
+    color: var(--gold);
 }
-.result-lesson p {
+.result-lesson p:not(.eyebrow) {
     font-size: 0.8rem;
     color: var(--muted);
     white-space: nowrap;

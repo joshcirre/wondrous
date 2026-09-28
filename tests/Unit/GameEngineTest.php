@@ -293,6 +293,10 @@ class GameEngineTest extends TestCase
         self::assertSame('finished', $s['phase']);
         self::assertSame(1, $s['winner_id']);
         self::assertNull($s['turn_player_id']);
+        self::assertSame('burn', $s['story']['defeats'][0]['cause'] ?? null);
+        self::assertSame('decisive_defeat', $s['deciding']['rule']);
+        self::assertSame("Turn 1: Bob's Crown Herald fell to burn.", $s['deciding']['text']);
+        self::assertStringNotContainsString('Ember Witch', $s['deciding']['text']);
     }
 
     public function test_drain_uses_actual_damage_and_cannot_overheal(): void

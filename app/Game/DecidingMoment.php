@@ -79,12 +79,22 @@ final class DecidingMoment
             'turn' => (int) ($s['turn_number'] ?? 0),
             'side' => $side,
             'skill' => $skill,
+            'cause' => null,
             'defender_recovery' => (int) ($defender['recovery'] ?? 0),
             'only_healer' => $onlyHealer,
             'standing' => $standing,
         ];
         $s['story']['defeats'][] = $defeat;
         $s['story']['last_kill'] = $defeat;
+    }
+
+    public static function noteBurnKill(array &$s, array $defender, ?int $sourceOwnerId = null): void
+    {
+        self::noteKill($s, ['owner_id' => $sourceOwnerId, 'character_id' => ''], $defender, null, null);
+        $last = array_key_last($s['story']['defeats']);
+        $s['story']['defeats'][$last]['cause'] = 'burn';
+        $s['story']['defeats'][$last]['attacker_character_id'] = '';
+        $s['story']['last_kill'] = $s['story']['defeats'][$last];
     }
 
     /**
@@ -98,8 +108,9 @@ final class DecidingMoment
             return [
                 'rule' => 'decisive_defeat',
                 'turn' => (int) $defeat['turn'],
-                'attacker_owner_id' => (int) $defeat['attacker_owner_id'],
-                'attacker_character_id' => (string) $defeat['attacker_character_id'],
+                'cause' => ($defeat['cause'] ?? null) === 'burn' ? 'burn' : null,
+                'attacker_owner_id' => (int) ($defeat['attacker_owner_id'] ?? 0),
+                'attacker_character_id' => (string) ($defeat['attacker_character_id'] ?? ''),
                 'defender_owner_id' => (int) $defeat['defender_owner_id'],
                 'defender_character_id' => (string) $defeat['defender_character_id'],
                 'consequence' => ! empty($defeat['only_healer']) ? 'without_healing' : null,
@@ -141,7 +152,26 @@ final class DecidingMoment
         $names = [];
         $values = [];
         $turn = isset($facts['turn']) ? (int) $facts['turn'] : null;
-        if (isset($facts['attacker_owner_id'], $facts['attacker_character_id'])) {
+        if ($rule === 'decisive_defeat' && ($facts['cause'] ?? null) === 'burn') {
+            $defender = self::championName(
+                $s,
+                (int) $facts['defender_owner_id'],
+                (string) $facts['defender_character_id'],
+                $viewerId,
+                $spectator,
+            );
+
+            return [
+                'rule' => $rule,
+                'text' => Chronicle::fill(LessonCatalog::DECIDING['decisive_defeat_burn'], [
+                    'n' => $turn,
+                    'defender' => $defender,
+                ]),
+                'turn' => $turn,
+                'names' => [$defender],
+            ];
+        }
+        if (isset($facts['attacker_owner_id'], $facts['attacker_character_id']) && $facts['attacker_character_id'] !== '') {
             $attacker = self::championName($s, (int) $facts['attacker_owner_id'], (string) $facts['attacker_character_id'], $viewerId, $spectator);
             $defender = self::championName($s, (int) $facts['defender_owner_id'], (string) $facts['defender_character_id'], $viewerId, $spectator);
             $names = [$attacker, $defender];

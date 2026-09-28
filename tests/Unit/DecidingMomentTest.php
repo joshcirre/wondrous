@@ -38,6 +38,7 @@ class DecidingMomentTest extends TestCase
         self::assertSame(LessonCatalog::DECIDING_RULES, DecidingMoment::RULES);
         self::assertSame('Turn {n}: {attacker} defeated {defender}.', LessonCatalog::DECIDING['decisive_defeat']);
         self::assertSame('Turn {n}: {attacker} defeated {defender}, {consequence}.', LessonCatalog::DECIDING['decisive_defeat_consequence']);
+        self::assertSame('Turn {n}: {defender} fell to burn.', LessonCatalog::DECIDING['decisive_defeat_burn']);
         self::assertSame('leaving them without healing', LessonCatalog::CONSEQUENCE['without_healing']);
         self::assertSame('{attacker} dealt {damage} to {defender} from behind.', LessonCatalog::DECIDING['flanking_hit']);
         self::assertSame('{attacker} dealt {damage} to {defender}.', LessonCatalog::DECIDING['biggest_hit']);
@@ -49,7 +50,7 @@ class DecidingMomentTest extends TestCase
         self::assertArrayHasKey('rear_hits', LessonCatalog::END_LESSON);
         self::assertArrayHasKey('blocked', LessonCatalog::END_LESSON);
         self::assertArrayHasKey('resting_defeat', LessonCatalog::END_LESSON);
-        self::assertArrayHasKey('fallback', LessonCatalog::END_LESSON);
+        self::assertSame('Keep your champions close enough to cover each other.', LessonCatalog::END_LESSON['fallback']);
     }
 
     public function test_earliest_defeat_that_never_lost_the_lead(): void
@@ -83,6 +84,30 @@ class DecidingMomentTest extends TestCase
         ]));
         self::assertSame('decisive_defeat', $line['rule']);
         self::assertSame("Turn 4: Alice's Iron Warden defeated Bob's Dawn Knight.", $line['text']);
+    }
+
+    public function test_burn_defeat_does_not_credit_a_living_ally(): void
+    {
+        $line = DecidingMoment::resolve($this->players([
+            'story' => [
+                'defeats' => [[
+                    'turn' => 2,
+                    'cause' => 'burn',
+                    'attacker_owner_id' => 1,
+                    'attacker_character_id' => 'warden',
+                    'defender_owner_id' => 2,
+                    'defender_character_id' => 'herald',
+                    'defender_recovery' => 0,
+                    'only_healer' => false,
+                    'standing' => [1 => 1, 2 => 0],
+                ]],
+            ],
+        ]));
+        self::assertSame('decisive_defeat', $line['rule']);
+        self::assertSame('burn', $line['facts']['cause']);
+        self::assertSame("Turn 2: Bob's Crown Herald fell to burn.", $line['text']);
+        self::assertStringNotContainsString('Iron Warden', $line['text']);
+        self::assertContains("Bob's Crown Herald", $line['names']);
     }
 
     public function test_only_healer_defeat_adds_the_consequence_clause(): void

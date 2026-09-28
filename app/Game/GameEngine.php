@@ -376,17 +376,7 @@ final class GameEngine
                     if ($s['units'][$i]['hp'] === 0) {
                         $killerId = $u['burn_source'] ?? $this->opponent($s, $actorId);
                         $this->death($s, $i, $killerId);
-                        $killer = $this->livingOwned($s, (int) $killerId);
-                        if ($killer) {
-                            DecidingMoment::noteKill($s, $killer, $u, null, null);
-                        } else {
-                            $s['story']['last_kill'] = [
-                                'attacker' => Chronicle::playerName($s, $killerId),
-                                'defender' => Chronicle::unitName($s, $u),
-                                'side' => null,
-                                'skill' => null,
-                            ];
-                        }
+                        DecidingMoment::noteBurnKill($s, $u, (int) $killerId);
                     }
                 }
                 foreach ($u['statuses'] as $key => $duration) {
