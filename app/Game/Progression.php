@@ -16,7 +16,7 @@ final class Progression
 
     public const LOADOUTS_AFTER = 2;
 
-    /** Ranked, correspondence, rating, crowns and Rankings. First win or this many finished matches. */
+    /** Ranked, correspondence, rating, crowns and Rankings. First win or this many finishes past the rewards bar. */
     public const COMPETITIVE_AFTER = 5;
 
     public const RANKED_HINT = 'Ranked unlocks after your first win or 5 finished matches.';
@@ -56,12 +56,14 @@ final class Progression
     {
         $finished = 0;
         $hasWon = false;
+        $qualifying = 0;
         if ($user) {
             $query = Game::query()->where(fn ($q) => $q->where('host_id', $user->id)->orWhere('guest_id', $user->id))->where('phase', 'finished');
             $finished = (int) (clone $query)->count();
             $hasWon = (clone $query)->where('state->winner_id', $user->id)->exists();
+            $qualifying = (int) (clone $query)->where('state->turn_number', '>=', MatchCredit::MIN_TURN)->count();
         }
-        $competitive = $hasWon || $finished >= self::COMPETITIVE_AFTER;
+        $competitive = $hasWon || $qualifying >= self::COMPETITIVE_AFTER;
 
         return [
             'matches_finished' => $finished,

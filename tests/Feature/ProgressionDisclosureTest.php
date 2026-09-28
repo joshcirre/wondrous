@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Game\ComputerOpponent;
+use App\Game\MatchCredit;
 use App\Game\Progression;
 use App\Game\Scenarios\FirstMatch;
 use App\Models\Game;
@@ -119,7 +120,7 @@ class ProgressionDisclosureTest extends TestCase
     public function test_five_finished_matches_without_a_win_unlocks_ranked_and_rankings(): void
     {
         $user = User::factory()->create();
-        $this->recordFinishedMatches($user, 4);
+        $this->recordFinishedMatches($user, 4, turnNumber: MatchCredit::MIN_TURN);
         $this->assertUnlocks($user, 4, false, [
             'formation' => true,
             'draft' => true,
@@ -135,7 +136,7 @@ class ProgressionDisclosureTest extends TestCase
             ->assertJsonPath('message', Progression::RANKED_HINT);
         $this->actingAs($user)->get('/rankings')->assertRedirect('/');
 
-        $this->recordFinishedMatches($user, 1);
+        $this->recordFinishedMatches($user, 1, turnNumber: MatchCredit::MIN_TURN);
         $this->assertUnlocks($user, 5, false, [
             'formation' => true,
             'draft' => true,
@@ -149,6 +150,60 @@ class ProgressionDisclosureTest extends TestCase
         $this->actingAs($user)->postJson('/games', ['name' => 'Ranked arena', 'ranked' => true])->assertCreated();
         $this->actingAs($user)->postJson('/games', ['name' => 'Letters', 'ranked' => false, 'time_control' => 'correspondence'])->assertCreated();
         $this->actingAs($user)->get('/rankings')->assertInertia(fn (Assert $page) => $page->component('Rankings'));
+    }
+
+    public function test_five_early_resigns_do_not_unlock_ranked(): void
+    {
+        $user = User::factory()->create();
+        $this->recordFinishedMatches($user, 5, turnNumber: 1);
+        $this->assertUnlocks($user, 5, false, [
+            'formation' => true,
+            'draft' => true,
+            'specialists' => true,
+            'loadouts' => true,
+            'ranked' => false,
+            'crowns' => false,
+            'correspondence' => false,
+            'rankings' => false,
+        ]);
+        $this->actingAs($user)->postJson('/games', ['name' => 'Ranked arena', 'ranked' => true])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', Progression::RANKED_HINT);
+        $this->actingAs($user)->get('/rankings')->assertRedirect('/');
+    }
+
+    public function test_five_matches_past_the_rewards_bar_unlock_ranked(): void
+    {
+        $user = User::factory()->create();
+        $this->recordFinishedMatches($user, 5, turnNumber: MatchCredit::MIN_TURN);
+        $this->assertUnlocks($user, 5, false, [
+            'formation' => true,
+            'draft' => true,
+            'specialists' => true,
+            'loadouts' => true,
+            'ranked' => true,
+            'crowns' => true,
+            'correspondence' => true,
+            'rankings' => true,
+        ]);
+        $this->actingAs($user)->postJson('/games', ['name' => 'Ranked arena', 'ranked' => true])->assertCreated();
+    }
+
+    public function test_one_short_win_unlocks_ranked(): void
+    {
+        $user = User::factory()->create();
+        $this->recordFinishedMatches($user, 1, $user->id, turnNumber: 1);
+        $this->assertUnlocks($user, 1, true, [
+            'formation' => true,
+            'draft' => false,
+            'specialists' => false,
+            'loadouts' => false,
+            'ranked' => true,
+            'crowns' => true,
+            'correspondence' => true,
+            'rankings' => true,
+        ]);
+        $this->actingAs($user)->postJson('/games', ['name' => 'Ranked arena', 'ranked' => true])->assertCreated();
     }
 
     public function test_stage_zero_practice_auto_drafts_and_auto_deploys_starter_squad(): void
@@ -309,6 +364,7 @@ class ProgressionDisclosureTest extends TestCase
         self::assertSame(2, Progression::SPECIALISTS_AFTER);
         self::assertSame(2, Progression::LOADOUTS_AFTER);
         self::assertSame(5, Progression::COMPETITIVE_AFTER);
+        self::assertSame(9, MatchCredit::MIN_TURN);
         self::assertSame('Ranked unlocks after your first win or 5 finished matches.', Progression::RANKED_HINT);
         self::assertSame('Loadouts unlock after your third match.', Progression::LOADOUTS_HINT);
     }

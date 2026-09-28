@@ -9,6 +9,7 @@ use App\Game\CharacterCatalog;
 use App\Game\ComputerOpponent;
 use App\Game\GameEngine;
 use App\Game\LessonCatalog;
+use App\Game\MatchCredit;
 use App\Game\Progression;
 use App\Game\Scenarios\FirstMatch;
 use App\Models\Game;
@@ -335,7 +336,7 @@ class MatchService
             $won = $p->id === $winner->id;
             $change = $won ? $delta : -$delta;
             // Short forfeits settle rating, but cannot be farmed for currency.
-            $coins = $state['turn_number'] >= 9 ? ($won ? 100 : 30) : 0;
+            $coins = MatchCredit::qualifies($state) ? ($won ? 100 : 30) : 0;
             $p->rating += $change;
             $p->currency += $coins;
             $p->{$won ? 'wins' : 'losses'}++;
