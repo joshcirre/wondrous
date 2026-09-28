@@ -49,6 +49,8 @@ type FloatScreen = {
     left: number;
     top: number;
     opacity: number;
+    tileX: number;
+    tileY: number;
 };
 type AnimHud = {
     turnBanner: string;
@@ -286,6 +288,9 @@ export default function Game() {
             (id) => state.players.find((player) => player.id === id)?.name ?? "Opponent",
         );
     }, [state.players]);
+    useEffect(() => {
+        queueRef.current?.rememberUnits(state.units);
+    }, [state.units]);
     useEffect(() => {
         const queue = queueRef.current;
         if (!queue) return;
@@ -1196,6 +1201,8 @@ export default function Game() {
                                     key={item.id}
                                     className={`board-float-overlay ${item.kind}`}
                                     data-float-overlay={`${item.kind}:${item.title}:${item.value ?? ""}:${item.chance ?? ""}`}
+                                    data-float-tile={`${item.tileX},${item.tileY}`}
+                                    data-float-pos={`${item.left.toFixed(1)},${item.top.toFixed(1)}`}
                                     style={{
                                         left: `${item.left}%`,
                                         top: `${item.top}%`,

@@ -438,8 +438,11 @@ describe("createAnimationQueue", () => {
                 kind: q.view().floats[0].kind,
                 title: q.view().floats[0].title,
                 chance: q.view().floats[0].chance,
+                x: q.view().floats[0].x,
+                y: q.view().floats[0].y,
+                unitId: q.view().floats[0].unitId,
             },
-            { kind: "block", title: "Blocked", chance: 40 },
+            { kind: "block", title: "Blocked", chance: 40, x: 3, y: 4, unitId: "2-warden" },
         );
 
         const miss = queue({ reducedMotion: true });
@@ -500,6 +503,24 @@ describe("createAnimationQueue", () => {
         assert.equal(q.view().inputLocked, false);
     });
 
+    it("anchors a float to a remembered target tile when poses were never ingested", () => {
+        const { q } = queue({ reducedMotion: true });
+        q.rememberUnits(units);
+        q.pushEvents(
+            [
+                attackEvent({
+                    outcome: "hit",
+                    damage: 18,
+                }),
+            ],
+            {},
+        );
+        assert.equal(q.view().floats[0].title, "HIT");
+        assert.equal(q.view().floats[0].x, 3);
+        assert.equal(q.view().floats[0].y, 4);
+        assert.equal(q.view().floats[0].unitId, "2-warden");
+    });
+
     it("uses skill amounts from the payload for floating text", () => {
         const { q } = queue({ reducedMotion: true });
         const skill: SkillEvent = {
@@ -513,6 +534,9 @@ describe("createAnimationQueue", () => {
         };
         q.pushEvents([skill], { units });
         assert.equal(q.view().floats[0].value, 34);
+        assert.equal(q.view().floats[0].x, 3);
+        assert.equal(q.view().floats[0].y, 4);
+        assert.equal(q.view().floats[0].unitId, "2-warden");
         assert.equal(q.view().effects[0].kind, "streak");
     });
 });

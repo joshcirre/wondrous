@@ -228,6 +228,7 @@ export function createAnimationQueue(options: QueueOptions) {
     let inputLocked = false;
     let poses: Record<string, UnitPose> = {};
     let owners: Record<string, number> = {};
+    let knownTiles: Record<string, Tile> = {};
     let deathBanners: DeathBanner[] = [];
     let turnBanner: QueueView["turnBanner"] = null;
     let opponentPlaying = false;
@@ -270,10 +271,29 @@ export function createAnimationQueue(options: QueueOptions) {
         };
     }
 
+    function rememberUnits(units?: BoardUnit[]) {
+        if (!units) return;
+        for (const unit of units) {
+            knownTiles[unit.id] = [unit.x, unit.y];
+            owners[unit.id] = unit.owner_id;
+        }
+    }
+
+    function tileOf(id: string): { x: number; y: number } {
+        const pose = poses[id];
+        if (pose && owners[id] !== undefined) return { x: pose.x, y: pose.y };
+        const known = knownTiles[id];
+        if (known) return { x: known[0], y: known[1] };
+        return { x: pose?.x ?? 0, y: pose?.y ?? 0 };
+    }
+
     function ensurePose(id: string, unit?: BoardUnit): UnitPose {
         if (!poses[id] && unit) {
             poses[id] = poseAt(unit.x, unit.y);
             owners[id] = unit.owner_id;
+        }
+        if (!poses[id] && knownTiles[id]) {
+            poses[id] = poseAt(knownTiles[id][0], knownTiles[id][1]);
         }
         if (!poses[id]) poses[id] = poseAt(0, 0);
         return poses[id];
@@ -281,6 +301,7 @@ export function createAnimationQueue(options: QueueOptions) {
 
     function ingestUnits(units?: BoardUnit[]) {
         if (!units) return;
+        rememberUnits(units);
         for (const unit of units) {
             const prior = poses[unit.id];
             poses[unit.id] = prior
@@ -522,12 +543,13 @@ export function createAnimationQueue(options: QueueOptions) {
                         if (event.owner_id !== viewerId) holdOpponentBanner(event.owner_id);
                         if (reducedMotion) {
                             const target = poses[event.target_id];
+                            const tile = tileOf(event.target_id);
                             spawnFloat(
                                 {
                                     ...float,
                                     unitId: event.target_id,
-                                    x: target?.x ?? 0,
-                                    y: target?.y ?? 0,
+                                    x: tile.x,
+                                    y: tile.y,
                                 },
                                 now(),
                             );
@@ -541,12 +563,13 @@ export function createAnimationQueue(options: QueueOptions) {
                         const dy = target.y - attacker.y;
                         const dist = Math.hypot(dx, dy) || 1;
                         if (!reducedMotion && !spawned && elapsed >= motion.impactAt) {
+                            const tile = tileOf(event.target_id);
                             spawnFloat(
                                 {
                                     ...float,
                                     unitId: event.target_id,
-                                    x: target.x,
-                                    y: target.y,
+                                    x: tile.x,
+                                    y: tile.y,
                                 },
                                 now(),
                             );
@@ -617,12 +640,13 @@ export function createAnimationQueue(options: QueueOptions) {
                         target.flash = 0;
                         target.sidestep = 0;
                         if (!spawned) {
+                            const tile = tileOf(event.target_id);
                             spawnFloat(
                                 {
                                     ...float,
                                     unitId: event.target_id,
-                                    x: target.x,
-                                    y: target.y,
+                                    x: tile.x,
+                                    y: tile.y,
                                 },
                                 now(),
                             );
@@ -712,15 +736,15 @@ export function createAnimationQueue(options: QueueOptions) {
                     duration: reducedMotion ? 0 : ms(TIMING.statusMs),
                     start() {
                         if (event.amount) {
-                            const pose = poses[event.unit_id];
+                            const tile = tileOf(event.unit_id);
                             spawnFloat(
                                 {
                                     kind: "hit",
                                     title: event.status,
                                     value: event.amount,
                                     unitId: event.unit_id,
-                                    x: pose?.x ?? 0,
-                                    y: pose?.y ?? 0,
+                                    x: tile.x,
+                                    y: tile.y,
                                 },
                                 now(),
                             );
@@ -801,15 +825,15 @@ export function createAnimationQueue(options: QueueOptions) {
         for (const targetId of event.target_ids) {
             const amount = event.amounts[targetId];
             if (amount === undefined) continue;
-            const pose = poses[targetId] ?? poseAt(0, 0);
+            const tile = tileOf(targetId);
             spawnFloat(
                 {
                     kind: heal ? "heal" : "hit",
                     title: heal ? event.skill : "HIT",
                     value: amount,
                     unitId: targetId,
-                    x: pose.x,
-                    y: pose.y,
+                    x: tile.x,
+                    y: tile.y,
                 },
                 now(),
             );
@@ -931,6 +955,7 @@ export function createAnimationQueue(options: QueueOptions) {
     return {
         pushEvents,
         pushSwap,
+        rememberUnits,
         advance,
         view,
         lock,

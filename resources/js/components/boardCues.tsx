@@ -440,7 +440,6 @@ export function FloatingResultCard({
         <Html
             position={[0, 1.55 + worldRise, 0]}
             center
-            sprite
             occlude={false}
             zIndexRange={[200, 0]}
             style={{ pointerEvents: "none", opacity, zIndex: 20 }}

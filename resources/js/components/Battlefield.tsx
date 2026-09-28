@@ -1,6 +1,6 @@
 import { createContext, Suspense, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from "react";
 import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
-import { Billboard, Html, OrbitControls } from "@react-three/drei";
+import { Billboard, OrbitControls } from "@react-three/drei";
 import { collectBoardHits, resolveBoardClick, resolveBoardHover } from "../lib/boardClick";
 import type { AimChip } from "../lib/aimChip";
 import type { AnimationQueue, QueueView } from "../lib/animationQueue";
@@ -117,6 +117,8 @@ type Props = {
             left: number;
             top: number;
             opacity: number;
+            tileX: number;
+            tileY: number;
         }[];
     }) => void;
 };
@@ -840,13 +842,11 @@ function MotionDriver({
     viewRef,
     onHud,
     viewerId,
-    homeSide,
 }: {
     animation?: AnimationQueue | null;
     viewRef: MutableRefObject<QueueView>;
     onHud?: Props["onHud"];
     viewerId: number;
-    homeSide: "north" | "south";
 }) {
     const [view, setView] = useState(viewRef.current);
     const hudKey = useRef("");
@@ -871,6 +871,7 @@ function MotionDriver({
         ) {
             setView(next);
         }
+        camera.updateMatrixWorld();
         const floatScreens = next.floats.map((item) => {
             const [wx, wy, wz] = tilePos(item.x, item.y, 1.55 + item.rise / 80);
             projected.set(wx, wy, wz).project(camera);
@@ -883,6 +884,8 @@ function MotionDriver({
                 left: (projected.x * 0.5 + 0.5) * 100,
                 top: (-projected.y * 0.5 + 0.5) * 100,
                 opacity: item.opacity,
+                tileX: item.x,
+                tileY: item.y,
             };
         });
         const key = [
@@ -937,15 +940,6 @@ function MotionDriver({
                     <DeathBannerMarker friendly={banner.ownerId === viewerId} />
                 </group>
             ))}
-            {view.turnBanner && (
-                <Html
-                    position={[0, 0.55, homeSide === "south" ? 4.05 : -4.05]}
-                    center
-                    style={{ pointerEvents: "none" }}
-                >
-                    <div className="turn-banner">{view.turnBanner.text}</div>
-                </Html>
-            )}
         </>
     );
 }
@@ -1182,7 +1176,6 @@ function Scene({
                 viewRef={viewRef}
                 onHud={onHud}
                 viewerId={viewerId}
-                homeSide={homeSide}
             />
             {units.map((unit) => (
                 <Pawn
