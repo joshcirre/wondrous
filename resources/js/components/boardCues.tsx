@@ -145,8 +145,8 @@ export function BaseFacingArrow({
     color: string;
     tucked?: boolean;
 }) {
-    const size = tucked ? 0.08 : 0.13;
-    const z = tucked ? -0.2 : -0.46;
+    const size = tucked ? 0.09 : 0.16;
+    const z = tucked ? -0.2 : -0.5;
     return (
         <group position={[0, 0.055, z]}>
             <mesh rotation={[-Math.PI / 2, 0, Math.PI]} renderOrder={6}>
@@ -689,9 +689,11 @@ function roundRect(
 function StatusBadgeChip({
     badge,
     index,
+    count,
 }: {
     badge: StatusBadge;
     index: number;
+    count: number;
 }) {
     const texture = useMemo(
         () => makeBadgeTexture(badge),
@@ -699,9 +701,11 @@ function StatusBadgeChip({
     );
     useEffect(() => () => texture.dispose(), [texture]);
     return (
-        <Billboard position={[0.22 + index * 0.42, 1.62, 0]}>
+        <Billboard
+            position={[(index - (count - 1) / 2) * 0.7, 1.98, 0]}
+        >
             <mesh renderOrder={8}>
-                <planeGeometry args={[0.4, 0.25]} />
+                <planeGeometry args={[0.66, 0.4]} />
                 <meshBasicMaterial
                     map={texture}
                     transparent
@@ -752,7 +756,12 @@ export function StatusBadgeRow({ badges }: { badges: StatusBadge[] }) {
     return (
         <group>
             {badges.map((badge, index) => (
-                <StatusBadgeChip key={badge.id} badge={badge} index={index} />
+                <StatusBadgeChip
+                    key={badge.id}
+                    badge={badge}
+                    index={index}
+                    count={badges.length}
+                />
             ))}
         </group>
     );
