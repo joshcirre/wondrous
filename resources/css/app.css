@@ -1337,6 +1337,58 @@ small {
 .board-busy svg {
     animation: spin 1s linear infinite;
 }
+.board-float {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    font-family: Cinzel, Georgia, serif;
+    text-shadow: 0 1px 4px #1a1208cc;
+    line-height: 1;
+    white-space: nowrap;
+}
+.board-float strong {
+    font-size: 1.7rem;
+    letter-spacing: 0.02em;
+}
+.board-float span {
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+.board-float small {
+    margin-top: 2px;
+    font-size: 0.68rem;
+    letter-spacing: 0.04em;
+    opacity: 0.9;
+}
+.board-float.hit {
+    color: #e07a42;
+}
+.board-float.hit strong {
+    color: #ff8a4a;
+}
+.board-float.block {
+    color: #c5cdd1;
+}
+.board-float.miss {
+    color: #7d8479;
+}
+.board-float.heal {
+    color: #8fd19e;
+}
+.turn-banner {
+    font-family: Cinzel, Georgia, serif;
+    font-size: 1.05rem;
+    letter-spacing: 0.08em;
+    color: #f3e2b3;
+    background: #111a13ee;
+    border: 1px solid #d5b676;
+    border-radius: 4px;
+    padding: 7px 16px;
+    text-transform: uppercase;
+    box-shadow: 0 8px 20px #0006;
+}
 .unit-panel {
     border-left: 1px solid var(--line);
     background: #1c231b;

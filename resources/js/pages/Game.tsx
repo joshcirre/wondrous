@@ -34,6 +34,11 @@ import type {
     Shared,
 } from "../types";
 import { aimChip } from "../lib/aimChip";
+import {
+    createAnimationQueue,
+    detectConfirmedSwap,
+    type AnimationQueue,
+} from "../lib/animationQueue";
 import { cameraForHome, fadedUnitIds } from "../lib/boardFade";
 import { cueVisibility } from "../lib/reducedBoard";
 const Battlefield = lazy(() => import("../components/Battlefield"));
@@ -58,6 +63,26 @@ export default function Game() {
     const [game, setGame] = useState(props.game);
     const [busy, setBusy] = useState(false);
     const busyRef = useRef(false);
+    const [animLocked, setAnimLocked] = useState(false);
+    const animLockedRef = useRef(false);
+    const [animHud, setAnimHud] = useState({
+        turnBanner: "",
+        floats: "",
+        deathBanners: "",
+        beat: "",
+    });
+    const queueRef = useRef<AnimationQueue | null>(null);
+    if (!queueRef.current) {
+        queueRef.current = createAnimationQueue({
+            viewerId: viewer.id,
+            playerName: (id) =>
+                props.game.state.players.find((player) => player.id === id)?.name ??
+                "Opponent",
+        });
+    }
+    const seenVersion = useRef(props.game.version);
+    const prevUnits = useRef(props.game.state.units);
+    const gameIdRef = useRef(props.game.id);
     const [error, setError] = useState("");
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [draftChoice, setDraftChoice] = useState<string | null>(null);
@@ -131,8 +156,65 @@ export default function Game() {
     useEffect(() => {
         if (state.phase === "finished") router.reload({ only: ["auth"] });
     }, [state.phase]);
+    useEffect(() => {
+        return queueRef.current?.onLock((locked) => {
+            animLockedRef.current = locked;
+            setAnimLocked(locked);
+        });
+    }, []);
+    useEffect(() => {
+        const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+        const apply = () => queueRef.current?.setReducedMotion(media.matches);
+        apply();
+        media.addEventListener("change", apply);
+        return () => media.removeEventListener("change", apply);
+    }, []);
+    useEffect(() => {
+        queueRef.current?.setPlayerName(
+            (id) => state.players.find((player) => player.id === id)?.name ?? "Opponent",
+        );
+    }, [state.players]);
+    useEffect(() => {
+        const queue = queueRef.current;
+        if (!queue) return;
+        if (game.id !== gameIdRef.current) {
+            gameIdRef.current = game.id;
+            seenVersion.current = game.version;
+            prevUnits.current = game.state.units;
+            return;
+        }
+        const previous = seenVersion.current;
+        if (game.version <= previous) {
+            prevUnits.current = game.state.units;
+            return;
+        }
+        const from = prevUnits.current;
+        seenVersion.current = game.version;
+        prevUnits.current = game.state.units;
+        const swap = detectConfirmedSwap(from, game.state.units);
+        queue.lock();
+        if (swap) queue.pushSwap(swap, { units: from });
+        void (async () => {
+            try {
+                let events = game.state.events ?? [];
+                if (game.version > previous + 1) {
+                    const response = await api.get(
+                        `/games/${game.code}/events?since=${previous}`,
+                    );
+                    events = response.data.events ?? [];
+                }
+                if (events.length) {
+                    queue.pushEvents(events, swap ? {} : { units: from });
+                } else if (!swap && !queue.view().busy) {
+                    queue.unlock();
+                }
+            } catch {
+                queue.unlock();
+            }
+        })();
+    }, [game]);
     async function action(type: string, payload: Record<string, unknown> = {}) {
-        if (busyRef.current || syncing) return;
+        if (busyRef.current || syncing || animLockedRef.current) return;
         busyRef.current = true;
         setBusy(true);
         setError("");
@@ -162,6 +244,7 @@ export default function Game() {
         selected.hp > 0 &&
         myTurn &&
         !syncing &&
+        !animLocked &&
         (!state.active_unit_id || state.active_unit_id === selected.id) &&
         (selected.recovery === 0 || state.active_unit_id === selected.id) &&
         !selected.statuses.stun &&
@@ -172,7 +255,7 @@ export default function Game() {
         : undefined;
     const cues = cueVisibility(game.options?.cues);
     const highlights = useMemo(() => {
-        if (!selected) return [];
+        if (!selected || animLocked) return [];
         if (
             state.phase === "deployment" &&
             selected.owner_id === viewer.id &&
@@ -224,6 +307,7 @@ export default function Game() {
         mode,
         unitOptions,
         cues.skill_strip,
+        animLocked,
     ]);
     const hoveredMove: LegalMove | undefined = hover
         ? unitOptions?.moves.find((move) => move.x === hover.x && move.y === hover.y)
@@ -306,6 +390,7 @@ export default function Game() {
         if (!cues.skill_strip && mode === "skill") setMode("attack");
     }, [cues.skill_strip, mode]);
     function select(id: string | null) {
+        if (busy || animLocked) return;
         setSelectedId(id);
         setMode("attack");
     }
@@ -313,7 +398,8 @@ export default function Game() {
         if (
             !selected ||
             !highlights.some((t) => t.x === x && t.y === y) ||
-            busy
+            busy ||
+            animLocked
         )
             return;
         const kind = highlights.find((t) => t.x === x && t.y === y)?.kind;
@@ -823,6 +909,11 @@ export default function Game() {
                             data-faded={fadedIds.join(",")}
                             data-moved={state.moved ? "1" : "0"}
                             data-acted={state.acted ? "1" : "0"}
+                            data-anim-busy={animLocked ? "1" : "0"}
+                            data-turn-banner={animHud.turnBanner}
+                            data-anim-beat={animHud.beat}
+                            data-floats={animHud.floats}
+                            data-death-banners={animHud.deathBanners}
                         >
                             <Suspense
                                 fallback={
@@ -908,7 +999,20 @@ export default function Game() {
                                             : null
                                     }
                                     deployment={state.phase === "deployment"}
-                                    interactive={!busy}
+                                    interactive={!busy && !animLocked}
+                                    animation={queueRef.current}
+                                    onHud={(hud) => {
+                                        setAnimHud({
+                                            turnBanner: hud.turnBanner,
+                                            floats: hud.floats,
+                                            deathBanners: hud.deathBanners,
+                                            beat: hud.beat,
+                                        });
+                                        if (hud.inputLocked !== animLockedRef.current) {
+                                            animLockedRef.current = hud.inputLocked;
+                                            setAnimLocked(hud.inputLocked);
+                                        }
+                                    }}
                                 />
                             </Suspense>
                             <div className="canvas-instructions">
@@ -1086,7 +1190,7 @@ export default function Game() {
                                 <button
                                     type="button"
                                     className="button primary"
-                                    disabled={!myTurn || busy}
+                                    disabled={!myTurn || busy || animLocked}
                                     onClick={() => action("end_turn")}
                                 >
                                     End turn
