@@ -1444,6 +1444,34 @@ small {
     padding: 8px 18px;
     text-transform: uppercase;
 }
+.lesson-card {
+    position: absolute;
+    left: 16px;
+    bottom: 40px;
+    z-index: 5;
+    width: min(280px, calc(100% - 32px));
+    padding: 12px 14px;
+    background: #111a13ee;
+    border: 1px solid #d5b676;
+    border-radius: 4px;
+    pointer-events: auto;
+}
+.lesson-card h3 {
+    margin: 4px 0 6px;
+    font-size: 1rem;
+}
+.lesson-card p {
+    margin: 0 0 8px;
+    color: var(--muted);
+    font-size: 0.84rem;
+    text-wrap: pretty;
+}
+.hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 14px 18px;
+}
 .board-float-overlay {
     position: absolute;
     transform: translate(-50%, -110%);

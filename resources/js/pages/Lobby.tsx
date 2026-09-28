@@ -23,8 +23,9 @@ type LobbyGame = {
     created_at: string;
 };
 export default function Lobby() {
-    const { auth, catalog, games, active, active_games, recent } = usePage<
+    const { auth, catalog, games, active, active_games, recent, first_match_available } = usePage<
         Shared & {
+            first_match_available?: boolean;
             games: LobbyGame[];
             active: string | null;
             active_games: {
@@ -71,16 +72,17 @@ export default function Lobby() {
     }, []);
     const practice = active_games?.find((game) => game.mode === "practice");
     const [practiceBusy, setPracticeBusy] = useState(false);
-    async function startPractice() {
+    async function startPractice(scenario?: "first_match") {
         if (practiceBusy) return;
         setPracticeBusy(true);
         setError("");
         try {
             const { data } = await api.post("/games", {
-                name: "Practice arena",
+                name: scenario === "first_match" ? "First match" : "Practice arena",
                 ranked: false,
                 mode: "practice",
-                reduced_board: reducedBoard,
+                reduced_board: scenario === "first_match" ? true : reducedBoard,
+                ...(scenario ? { scenario } : {}),
             });
             router.visit(`/games/${data.code}`);
         } catch (error) {
@@ -227,9 +229,28 @@ export default function Lobby() {
                         Six champions. A world of possibilities. Gather your
                         company and make your next move matter.
                     </p>
-                    <a className="button" href="#arena-settings">
-                        Enter the arena <ArrowRightIcon />
-                    </a>
+                    {first_match_available ? (
+                        <div className="hero-actions">
+                            <button
+                                type="button"
+                                className="button primary"
+                                onClick={() => void startPractice("first_match")}
+                                disabled={practiceBusy}
+                            >
+                                {practiceBusy
+                                    ? "Preparing your opponent…"
+                                    : "Start your first match"}
+                                <ArrowRightIcon />
+                            </button>
+                            <a className="text-link" href="#arena-settings">
+                                Enter the arena
+                            </a>
+                        </div>
+                    ) : (
+                        <a className="button" href="#arena-settings">
+                            Enter the arena <ArrowRightIcon />
+                        </a>
+                    )}
                 </div>
                 <div className="realm-banner-seal">
                     <span>W</span>
@@ -260,6 +281,19 @@ export default function Lobby() {
                     </Link>
                 ) : (
                     <div className="practice-actions">
+                        {first_match_available && (
+                            <button
+                                type="button"
+                                className="button primary"
+                                onClick={() => void startPractice("first_match")}
+                                disabled={practiceBusy}
+                            >
+                                {practiceBusy
+                                    ? "Preparing your opponent…"
+                                    : "Start your first match"}
+                                <ArrowRightIcon />
+                            </button>
+                        )}
                         <label className="reduced-board-toggle compact">
                             <input
                                 type="checkbox"
@@ -274,7 +308,7 @@ export default function Lobby() {
                         <button
                             type="button"
                             className="button"
-                            onClick={startPractice}
+                            onClick={() => void startPractice()}
                             disabled={practiceBusy}
                         >
                             {practiceBusy

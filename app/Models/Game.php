@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Game\BoardCues;
 use App\Game\GameEngine;
+use App\Game\LessonCatalog;
 use Illuminate\Database\Eloquent\Model;
 
 class Game extends Model
@@ -47,7 +48,7 @@ class Game extends Model
             $options['cues'] = BoardCues::visibility((bool) $this->reduced_board, (int) ($this->state['turn_number'] ?? 0));
         }
 
-        return ['id' => $this->id, 'code' => $this->code, 'name' => $this->name, 'ranked' => $this->ranked, 'mode' => $this->mode ?? 'multiplayer', 'time_control' => $this->time_control ?? 'live', 'reduced_board' => (bool) $this->reduced_board, 'turn_due_at' => $this->turn_due_at?->toISOString(), 'version' => $this->version, 'state' => $state, 'options' => $options, 'created_at' => $this->created_at->toISOString(), 'reward_claimed' => in_array($id, $this->claims ?? [])];
+        return ['id' => $this->id, 'code' => $this->code, 'name' => $this->name, 'ranked' => $this->ranked, 'mode' => $this->mode ?? 'multiplayer', 'time_control' => $this->time_control ?? 'live', 'reduced_board' => (bool) $this->reduced_board, 'turn_due_at' => $this->turn_due_at?->toISOString(), 'version' => $this->version, 'state' => $state, 'options' => $options, 'lesson' => LessonCatalog::present($this->state), 'created_at' => $this->created_at->toISOString(), 'reward_claimed' => in_array($id, $this->claims ?? [])];
     }
 
     /** Drop events that would reveal hidden formation or private deck data. */

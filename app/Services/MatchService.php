@@ -5,8 +5,11 @@ namespace App\Services;
 use App\Events\GameUpdated;
 use App\Events\LobbyUpdated;
 use App\Events\MatchAdvanced;
+use App\Game\CharacterCatalog;
 use App\Game\ComputerOpponent;
 use App\Game\GameEngine;
+use App\Game\LessonCatalog;
+use App\Game\Scenarios\FirstMatch;
 use App\Models\Game;
 use App\Models\User;
 use Illuminate\Support\Facades\Cache;
@@ -18,12 +21,14 @@ class MatchService
 {
     public function __construct(private GameEngine $engine, private ComputerOpponent $computer) {}
 
-    public function create(User $user, string $name, bool $ranked, string $timeControl = 'live', string $mode = 'multiplayer', bool $reducedBoard = true): Game
+    public function create(User $user, string $name, bool $ranked, string $timeControl = 'live', string $mode = 'multiplayer', bool $reducedBoard = true, ?string $scenario = null): Game
     {
-        return Cache::lock('player-activity:'.$user->id, 15)->block(5, fn () => DB::transaction(function () use ($user, $name, $ranked, $timeControl, $mode, $reducedBoard) {
+        return Cache::lock('player-activity:'.$user->id, 15)->block(5, fn () => DB::transaction(function () use ($user, $name, $ranked, $timeControl, $mode, $reducedBoard, $scenario) {
             $active = Game::where('mode', 'multiplayer')->where('time_control', 'live')->where(fn ($q) => $q->where('host_id', $user->id)->orWhere('guest_id', $user->id))->where('phase', '!=', 'finished')->first();
             abort_unless(in_array($timeControl, ['live', 'correspondence'], true), 422, 'Invalid time control.');
             abort_unless(in_array($mode, ['multiplayer', 'practice'], true), 422, 'Invalid game mode.');
+            abort_unless(in_array($scenario, [null, FirstMatch::KEY], true), 422, 'Unknown scenario.');
+            abort_if($scenario === FirstMatch::KEY && $mode !== 'practice', 422, 'First match is a practice scenario.');
             if ($mode === 'practice') {
                 $timeControl = 'live';
                 $ranked = false;
@@ -33,6 +38,9 @@ class MatchService
                 }
             }
             abort_if($mode === 'multiplayer' && $timeControl === 'live' && $active, 422, 'Finish or leave your live match before creating another live match.');
+            if ($scenario === FirstMatch::KEY) {
+                $reducedBoard = true;
+            }
             $game = Game::create(['id' => (string) Str::ulid(), 'code' => strtoupper(Str::random(6)), 'name' => $name, 'mode' => $mode, 'ranked' => $timeControl === 'correspondence' ? false : $ranked, 'time_control' => $timeControl, 'reduced_board' => $reducedBoard, 'host_id' => $user->id, 'phase' => 'lobby', 'state' => $this->engine->create($user->id, $user->name, $user->loadout ?? [])]);
             $state = $game->state;
             $state['mode'] = $mode;
@@ -41,6 +49,10 @@ class MatchService
                 $payload = ['id' => ComputerOpponent::ID, 'name' => 'Practice opponent', 'loadout' => []];
                 $state = $this->engine->apply($game->state, ComputerOpponent::ID, 'join', $payload);
                 $this->record($game, null, 'join', $payload, $state);
+            }
+            if ($scenario === FirstMatch::KEY) {
+                $state = $this->hydrateFirstMatch($game->state);
+                $this->record($game, $user->id, 'scenario', ['scenario' => FirstMatch::KEY], $state);
             }
             event(new LobbyUpdated);
 
@@ -79,7 +91,7 @@ class MatchService
                 $payload = ['id' => $user->id, 'name' => $user->name, 'loadout' => $user->loadout ?? []];
             }
             $previous = $game->state;
-            $state = $this->engine->apply($previous, $user->id, $type, $payload);
+            $state = LessonCatalog::advance($this->engine->apply($previous, $user->id, $type, $payload));
             if ($state['phase'] === 'finished' && ! $game->settled_at) {
                 $state = $this->settle($game, $state);
             }
@@ -113,7 +125,7 @@ class MatchService
             if (! $command) {
                 return;
             }
-            $state = $this->engine->apply($game->state, ComputerOpponent::ID, $command['type'], $command['payload']);
+            $state = LessonCatalog::advance($this->engine->apply($game->state, ComputerOpponent::ID, $command['type'], $command['payload']));
             if ($state['phase'] === 'finished' && ! $game->settled_at) {
                 $state = $this->settle($game, $state);
             }
@@ -209,6 +221,65 @@ class MatchService
         // Commit inside the same transaction as the projection and rewards, before releasing the match lock.
         Verbs::commit();
         DB::table('game_records')->insert(['game_id' => $game->id, 'version' => $game->version, 'actor_id' => $actor, 'action' => $action, 'payload' => json_encode($payload), 'state' => json_encode($state), 'created_at' => now(), 'updated_at' => now()]);
+    }
+
+    private function hydrateFirstMatch(array $state): array
+    {
+        $hostId = $state['host_id'];
+        $playerSquad = FirstMatch::playerSquad();
+        $computerSquad = FirstMatch::computerSquad();
+        $state['phase'] = 'battle';
+        $state['turn_player_id'] = $hostId;
+        $state['turn_number'] = 1;
+        $state['ready'] = [$hostId, ComputerOpponent::ID];
+        $state['draft_picks'] = [
+            $hostId => array_column($playerSquad, 'character_id'),
+            ComputerOpponent::ID => array_column($computerSquad, 'character_id'),
+        ];
+        $state['units'] = array_merge(
+            $this->unitsFromSquad($playerSquad, $hostId),
+            $this->unitsFromSquad($computerSquad, ComputerOpponent::ID),
+        );
+        $state['active_unit_id'] = null;
+        $state['moved'] = false;
+        $state['acted'] = false;
+        $state['winner_id'] = null;
+        $state['scenario'] = FirstMatch::KEY;
+        $state['lesson_step'] = 1;
+        $state['events'] = [['type' => 'turn_start', 'player_id' => $hostId, 'turn_number' => 1]];
+        $state['log'][] = ['turn' => 1, 'text' => 'Battle begins.'];
+        $state['log'] = array_slice($state['log'], -80);
+
+        return LessonCatalog::advance($state);
+    }
+
+    /**
+     * @param  list<array{character_id: string, x: int, y: int, facing: string}>  $squad
+     * @return list<array<string, mixed>>
+     */
+    private function unitsFromSquad(array $squad, int $ownerId): array
+    {
+        $units = [];
+        foreach ($squad as $placed) {
+            $c = CharacterCatalog::get($placed['character_id']);
+            $units[] = [
+                'id' => $ownerId.'-'.$placed['character_id'],
+                'character_id' => $placed['character_id'],
+                'owner_id' => $ownerId,
+                'x' => $placed['x'],
+                'y' => $placed['y'],
+                'hp' => $c['hp'],
+                'max_hp' => $c['hp'],
+                'mana' => $c['mana'],
+                'max_mana' => $c['mana'],
+                'facing' => $placed['facing'],
+                'recovery' => 0,
+                'cooldown' => 0,
+                'statuses' => [],
+            ];
+        }
+
+        return $units;
     }
 
     private function settle(Game $game, array $state): array

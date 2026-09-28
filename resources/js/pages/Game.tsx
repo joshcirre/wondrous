@@ -148,6 +148,7 @@ export default function Game() {
     const [connected, setConnected] = useState(false);
     const [confirmResign, setConfirmResign] = useState(false);
     const [copied, setCopied] = useState(false);
+    const [dismissedLesson, setDismissedLesson] = useState("");
     const practice = game.mode === "practice";
     const [syncing, setSyncing] = useState(false);
     const refreshRef = useRef(false);
@@ -640,9 +641,9 @@ export default function Game() {
             {practice && state.phase !== "finished" && (
                 <div className="practice-notice">
                     <p>
-                        Practice freely. Choose any six champions; the computer
-                        follows the same rules. No ratings, crowns, or card
-                        rewards.
+                        {state.scenario === "first_match"
+                            ? "Your first match. One idea per turn. No ratings, crowns, or card rewards."
+                            : "Practice freely. Choose any six champions; the computer follows the same rules. No ratings, crowns, or card rewards."}
                     </p>
                     <Link href="/" className="text-link">
                         Leave and resume later <ArrowRightIcon />
@@ -1194,6 +1195,34 @@ export default function Game() {
                                     <ArrowPathIcon /> Resolving…
                                 </div>
                             )}
+                            {game.lesson &&
+                                dismissedLesson !==
+                                    `${game.lesson.step}:${game.lesson.variant ?? ""}` && (
+                                    <aside
+                                        className="lesson-card unit-panel"
+                                        data-lesson-step={game.lesson.step}
+                                        data-lesson-variant={
+                                            game.lesson.variant ?? ""
+                                        }
+                                    >
+                                        <Eyebrow>
+                                            Lesson {game.lesson.step}
+                                        </Eyebrow>
+                                        <h3>{game.lesson.title}</h3>
+                                        <p>{game.lesson.body}</p>
+                                        <button
+                                            type="button"
+                                            className="text-link"
+                                            onClick={() =>
+                                                setDismissedLesson(
+                                                    `${game.lesson!.step}:${game.lesson!.variant ?? ""}`,
+                                                )
+                                            }
+                                        >
+                                            Dismiss
+                                        </button>
+                                    </aside>
+                                )}
                             {liveTurnBanner && (
                                 <div
                                     className="turn-banner-overlay"
