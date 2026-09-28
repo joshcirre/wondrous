@@ -1,6 +1,6 @@
-import { useLayoutEffect, useRef, type ReactNode } from "react";
-import { Html, Line } from "@react-three/drei";
-import { Group, Mesh } from "three";
+import { useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
+import { Billboard, Html, Line } from "@react-three/drei";
+import { CanvasTexture, Color, Group, Mesh, SRGBColorSpace } from "three";
 import type { AimChip } from "../lib/aimChip";
 import { type StatusBadge } from "../lib/statusCues";
 
@@ -89,19 +89,20 @@ export function DashedRing({
 }) {
     return (
         <group>
-            {Array.from({ length: 16 }, (_, i) => (
+            {Array.from({ length: 14 }, (_, i) => (
                 <mesh
                     key={i}
-                    rotation={[-Math.PI / 2, 0, (i * Math.PI) / 8]}
+                    rotation={[-Math.PI / 2, 0, (i * Math.PI) / 7]}
                     position={[0, y, 0]}
+                    renderOrder={3}
                 >
                     <ringGeometry
-                        args={[radius, radius + 0.045, 12, 1, 0, Math.PI / 16]}
+                        args={[radius, radius + 0.07, 12, 1, 0, Math.PI / 14]}
                     />
                     <meshBasicMaterial
                         color={spentGrey}
-                        transparent
-                        opacity={0.9}
+                        depthTest={false}
+                        depthWrite={false}
                     />
                 </mesh>
             ))}
@@ -131,6 +132,12 @@ export function FacingArrow({
     );
 }
 
+export function dimSpentColor(hex: string): string {
+    const color = new Color(hex).lerp(new Color(spentGrey), 0.4);
+    color.multiplyScalar(0.6);
+    return `#${color.getHexString()}`;
+}
+
 export function BaseFacingArrow({
     color,
     tucked = false,
@@ -138,14 +145,33 @@ export function BaseFacingArrow({
     color: string;
     tucked?: boolean;
 }) {
+    const size = tucked ? 0.08 : 0.13;
+    const z = tucked ? -0.2 : -0.46;
     return (
-        <mesh
-            rotation={[-Math.PI / 2, 0, Math.PI]}
-            position={[0, 0.028, tucked ? -0.22 : -0.4]}
-        >
-            <circleGeometry args={[tucked ? 0.045 : 0.065, 3]} />
-            <meshBasicMaterial color={color} />
-        </mesh>
+        <group position={[0, 0.055, z]}>
+            <mesh rotation={[-Math.PI / 2, 0, Math.PI]} renderOrder={6}>
+                <circleGeometry args={[size, 3]} />
+                <meshBasicMaterial
+                    color={color}
+                    depthTest={false}
+                    depthWrite={false}
+                />
+            </mesh>
+            {!tucked && (
+                <mesh
+                    rotation={[-Math.PI / 2, 0, 0]}
+                    position={[0, 0, 0.08]}
+                    renderOrder={6}
+                >
+                    <planeGeometry args={[0.055, 0.12]} />
+                    <meshBasicMaterial
+                        color={color}
+                        depthTest={false}
+                        depthWrite={false}
+                    />
+                </mesh>
+            )}
+        </group>
     );
 }
 
@@ -607,14 +633,117 @@ export function MotionEffectMesh({
     );
 }
 
+function badgeInk(color: string): string {
+    const value = new Color(color);
+    return value.r * 0.3 + value.g * 0.5 + value.b * 0.2 > 0.45
+        ? "#1a1d18"
+        : "#f4f1e6";
+}
+
+function makeBadgeTexture(badge: StatusBadge): CanvasTexture {
+    const canvas = document.createElement("canvas");
+    canvas.width = 256;
+    canvas.height = 160;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+        return new CanvasTexture(canvas);
+    }
+    const ink = badgeInk(badge.color);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = badge.color;
+    roundRect(ctx, 8, 12, 240, 136, 40);
+    ctx.fill();
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = "#141612";
+    ctx.stroke();
+    ctx.fillStyle = ink;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = "700 72px Cinzel, serif";
+    ctx.fillText(badge.glyph, 78, 82);
+    ctx.font = "700 70px Inter, sans-serif";
+    ctx.fillText(badge.text, 176, 84);
+    const texture = new CanvasTexture(canvas);
+    texture.colorSpace = SRGBColorSpace;
+    texture.needsUpdate = true;
+    return texture;
+}
+
+function roundRect(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    r: number,
+) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+}
+
+function StatusBadgeChip({
+    badge,
+    index,
+}: {
+    badge: StatusBadge;
+    index: number;
+}) {
+    const texture = useMemo(
+        () => makeBadgeTexture(badge),
+        [badge.color, badge.glyph, badge.id, badge.text],
+    );
+    useEffect(() => () => texture.dispose(), [texture]);
+    return (
+        <Billboard position={[0.22 + index * 0.42, 1.62, 0]}>
+            <mesh renderOrder={8}>
+                <planeGeometry args={[0.4, 0.25]} />
+                <meshBasicMaterial
+                    map={texture}
+                    transparent
+                    depthTest={false}
+                    depthWrite={false}
+                />
+            </mesh>
+            <Html
+                center
+                occlude={false}
+                zIndexRange={[180, 0]}
+                style={{ fontSize: 16 }}
+            >
+                <button
+                    type="button"
+                    className="status-badge-hit"
+                    aria-label={badge.label}
+                    data-label={badge.label}
+                    data-status={badge.id}
+                    data-badge-index={index}
+                />
+            </Html>
+        </Billboard>
+    );
+}
+
 export function MoonBadge({ turns }: { turns: number }) {
     return (
-        <Html position={[0.36, 1.42, 0]} center style={{ pointerEvents: "none" }}>
-            <div className="rest-moon">
-                <span>☾</span>
-                {turns}
-            </div>
-        </Html>
+        <StatusBadgeRow
+            badges={[
+                {
+                    id: "rest",
+                    glyph: "☾",
+                    color: spentGrey,
+                    turns,
+                    text: String(turns),
+                    label: `Recovering · ${turns}`,
+                    left: 0,
+                    width: 32,
+                },
+            ]}
+        />
     );
 }
 
@@ -623,32 +752,7 @@ export function StatusBadgeRow({ badges }: { badges: StatusBadge[] }) {
     return (
         <group>
             {badges.map((badge, index) => (
-                <Html
-                    key={badge.id}
-                    position={[0.36 + index * 0.26, 1.42, 0]}
-                    center
-                    occlude={false}
-                    zIndexRange={[180, 0]}
-                    style={{ fontSize: 15 }}
-                >
-                    <button
-                        type="button"
-                        className={`status-badge${badge.id === "rest" ? " rest-moon" : ""}`}
-                        style={{
-                            width: badge.width,
-                            borderColor: badge.color,
-                            color: badge.color,
-                        }}
-                        title={badge.label}
-                        aria-label={badge.label}
-                        data-label={badge.label}
-                        data-status={badge.id}
-                        data-badge-index={index}
-                    >
-                        <span aria-hidden="true">{badge.glyph}</span>
-                        {badge.text}
-                    </button>
-                </Html>
+                <StatusBadgeChip key={badge.id} badge={badge} index={index} />
             ))}
         </group>
     );

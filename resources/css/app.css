@@ -3833,40 +3833,23 @@ label {
     color: #8fd19e;
     background: #1d2a22cc;
 }
-.rest-moon,
-.status-badge {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 3px;
-    padding: 2px 6px;
-    border-radius: 999px;
-    background: #1a1d18ee;
-    border: 1px dashed #7d8479;
-    color: #c5c8bc;
-    font-size: 0.78rem;
-    font-variant-numeric: tabular-nums;
-    box-sizing: border-box;
-}
-.status-badge-row {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    pointer-events: auto;
-}
-.status-badge {
-    position: relative;
-    flex: 0 0 auto;
+.status-badge-hit {
+    display: block;
+    width: 2.7rem;
+    height: 1.7rem;
+    padding: 0;
+    border: 0;
+    background: transparent;
     cursor: default;
-    line-height: 1.15;
+    position: relative;
 }
-.status-badge:focus-visible,
+.status-badge-hit:focus-visible,
 .spent-reason:focus-visible {
     outline: 1px solid #edce91;
     outline-offset: 2px;
 }
-.status-badge:hover::after,
-.status-badge:focus-visible::after,
+.status-badge-hit:hover::after,
+.status-badge-hit:focus-visible::after,
 .spent-reason:hover::after,
 .spent-reason:focus-visible::after {
     content: attr(data-label);

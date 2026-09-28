@@ -157,6 +157,8 @@ class GameEngineOptionsTest extends TestCase
         $opts = $this->unitOptions($recovering, 1, $recovering['units'][0]['id']);
         self::assertFalse($opts['can_activate']);
         self::assertSame('This character is recovering.', $opts['reason']);
+        self::assertSame('recovering', $opts['reason_code']);
+        self::assertTrue($opts['spent']);
         try {
             $e->apply($recovering, 1, 'face', ['unit_id' => $recovering['units'][0]['id'], 'facing' => 'west']);
             self::fail('Recovering unit should not activate');
@@ -176,12 +178,34 @@ class GameEngineOptionsTest extends TestCase
         $otherOpts = $this->unitOptions($activated, 1, $other['id']);
         self::assertFalse($otherOpts['can_activate']);
         self::assertSame('Only one character can activate per turn.', $otherOpts['reason']);
+        self::assertSame('other_active', $otherOpts['reason_code']);
+        self::assertFalse($otherOpts['spent']);
+        $activeOpts = $this->unitOptions($activated, 1, $s['units'][0]['id']);
+        self::assertFalse($activeOpts['spent']);
         try {
             $e->apply($activated, 1, 'face', ['unit_id' => $other['id'], 'facing' => 'east']);
             self::fail('Second champion should be rejected');
         } catch (GameRuleException $error) {
             self::assertSame($otherOpts['reason'], $error->getMessage());
         }
+    }
+
+    public function test_spent_flag_marks_stun_and_acted_units_only(): void
+    {
+        $e = $this->engine();
+        $stunned = $this->duel('knight', 'warden');
+        $stunned['units'][0]['statuses']['stun'] = 1;
+        $stunOpts = $this->unitOptions($stunned, 1, '1-knight');
+        self::assertFalse($stunOpts['can_activate']);
+        self::assertSame('stunned', $stunOpts['reason_code']);
+        self::assertTrue($stunOpts['spent']);
+
+        $s = $this->duel('warden', 'warden');
+        $after = $e->apply($s, 1, 'skill', ['unit_id' => '1-warden', 'target_id' => '1-warden']);
+        $caster = $this->unitOptions($after, 1, '1-warden');
+        self::assertTrue($caster['spent']);
+        self::assertTrue($caster['can_activate']);
+        self::assertSame('This character is recovering.', $caster['spent_reason']);
     }
 
     public function test_skill_cooldown_and_mana_reasons_match_apply(): void

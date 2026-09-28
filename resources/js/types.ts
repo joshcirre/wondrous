@@ -183,6 +183,9 @@ export type LegalSkill = {
 export type UnitOptions = {
     can_activate: boolean;
     reason: string | null;
+    reason_code?: string | null;
+    spent?: boolean;
+    spent_reason?: string | null;
     moves: LegalMove[];
     attack: LegalAttack[];
     skill: LegalSkill;

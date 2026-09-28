@@ -13,6 +13,7 @@ import {
     DeathBannerMarker,
     DottedTrail,
     BaseFacingArrow,
+    dimSpentColor,
     FadeGroup,
     FacingControls,
     FloatingResultCard,
@@ -196,7 +197,13 @@ function Pawn({
     actionStrip?: Props["actionStrip"];
     facingControls?: Props["facingControls"];
     aimHere?: Props["aim"];
-    option?: { can_activate: boolean; reason: string | null } | null;
+    option?: {
+        can_activate: boolean;
+        reason: string | null;
+        reason_code?: string | null;
+        spent?: boolean;
+        spent_reason?: string | null;
+    } | null;
     statusFacts?: Record<string, StatusFact>;
 }) {
     const group = useRef<Group>(null);
@@ -266,7 +273,9 @@ function Pawn({
               facts: statusFacts,
           })
         : [];
-    const dimmed = faded ? 0.35 : spent.spent ? 0.6 : 1;
+    const occlusion = faded ? 0.35 : 1;
+    const team = friendly ? teal : teamRed;
+    const bodyColor = spent.spent ? dimSpentColor(team) : team;
     return (
         <group ref={group} position={initialPosition.current}>
             {showMiniature && (
@@ -299,9 +308,7 @@ function Pawn({
                 </mesh>
             )}
             <NonInteractive>
-                <FadeGroup
-                    opacity={dimmed}
-                >
+                <FadeGroup opacity={occlusion}>
                     {selected && showMiniature && !spent.spent && (
                         <>
                             <GoldRing radius={0.38} width={0.08} y={0.055} />
@@ -345,11 +352,11 @@ function Pawn({
                     >
                         <Miniature
                             id={unit.character_id}
-                            color={friendly ? teal : teamRed}
+                            color={bodyColor}
                         />
                         {living && (
                             <BaseFacingArrow
-                                color={friendly ? teal : teamRed}
+                                color={team}
                                 tucked={Boolean(
                                     aimHere?.showFacingRing || facingControls,
                                 )}
@@ -403,7 +410,6 @@ function Pawn({
                         >
                             <span
                                 className="spent-reason"
-                                title={spent.reason}
                                 aria-label={spent.reason}
                                 tabIndex={0}
                                 data-label={spent.reason}

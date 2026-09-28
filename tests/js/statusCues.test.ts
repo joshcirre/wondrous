@@ -117,18 +117,37 @@ describe("statusBadgeRow", () => {
 });
 
 describe("spentFromServer", () => {
-    it("marks spent when the server option says can_activate is false", () => {
+    it("does not dim teammates blocked only because another champion is active", () => {
         const cue = spentFromServer({
             statuses: {},
             recovery: 0,
             option: {
                 can_activate: false,
                 reason: "Only one character can activate per turn.",
+                reason_code: "other_active",
+                spent: false,
+            },
+        });
+
+        assert.equal(cue.spent, false);
+        assert.equal(cue.reason, null);
+    });
+
+    it("marks spent when the server flags this unit spent", () => {
+        const cue = spentFromServer({
+            statuses: {},
+            recovery: 0,
+            option: {
+                can_activate: true,
+                reason: null,
+                reason_code: null,
+                spent: true,
+                spent_reason: "This character is recovering.",
             },
         });
 
         assert.equal(cue.spent, true);
-        assert.equal(cue.reason, "Only one character can activate per turn.");
+        assert.equal(cue.reason, "This character is recovering.");
     });
 
     it("uses stun from unit state, not a client rule", () => {
@@ -175,17 +194,33 @@ describe("spentFromServer", () => {
         assert.equal(cue.spent, false);
     });
 
-    it("prefers the server reason when both stun and can_activate are present", () => {
+    it("prefers the server spent flag and reason when stun is also in state", () => {
         const cue = spentFromServer({
             statuses: { stun: 1 },
             recovery: 0,
             option: {
                 can_activate: false,
                 reason: "This character is stunned.",
+                reason_code: "stunned",
+                spent: true,
             },
         });
 
         assert.equal(cue.spent, true);
         assert.equal(cue.reason, "This character is stunned.");
+    });
+
+    it("does not treat can_activate false as spent without a server spent flag", () => {
+        const cue = spentFromServer({
+            statuses: {},
+            recovery: 0,
+            option: {
+                can_activate: false,
+                reason: "Only one character can activate per turn.",
+            },
+        });
+
+        assert.equal(cue.spent, false);
+        assert.equal(cue.reason, null);
     });
 });

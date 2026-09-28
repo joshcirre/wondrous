@@ -514,9 +514,14 @@ final class GameEngine
     {
         $catalog = CharacterCatalog::get($unit['character_id']);
         $activation = $this->probe($oracle, $s, $viewerId, 'face', ['unit_id' => $unit['id'], 'facing' => $unit['facing']]);
+        $reasonCode = $this->activationReasonCode($activation);
+        $spent = $this->unitIsSpent($s, $unit);
         $entry = [
             'can_activate' => $activation === null,
             'reason' => $activation,
+            'reason_code' => $reasonCode,
+            'spent' => $spent,
+            'spent_reason' => $spent ? $this->spentReason($s, $unit) : null,
             'moves' => [],
             'attack' => [],
             'skill' => ['usable' => false, 'reason' => $activation, 'cost' => $catalog['skill']['cost'], 'targets' => []],
@@ -558,6 +563,41 @@ final class GameEngine
         }
 
         return $entry;
+    }
+
+    private function activationReasonCode(?string $reason): ?string
+    {
+        return match ($reason) {
+            null => null,
+            'This character is recovering.' => 'recovering',
+            'This character is stunned.' => 'stunned',
+            'Only one character can activate per turn.' => 'other_active',
+            default => 'blocked',
+        };
+    }
+
+    private function unitIsSpent(array $s, array $unit): bool
+    {
+        if (($unit['recovery'] ?? 0) > 0) {
+            return true;
+        }
+        if (($unit['statuses']['stun'] ?? 0) > 0) {
+            return true;
+        }
+
+        return ($s['active_unit_id'] ?? null) === $unit['id'] && ($s['acted'] ?? false);
+    }
+
+    private function spentReason(array $s, array $unit): string
+    {
+        if (($unit['statuses']['stun'] ?? 0) > 0) {
+            return 'This character is stunned.';
+        }
+        if (($unit['recovery'] ?? 0) > 0) {
+            return 'This character is recovering.';
+        }
+
+        return 'This character has already acted.';
     }
 
     private function probe(self $oracle, array $s, int $actorId, string $type, array $payload): ?string

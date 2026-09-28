@@ -32,12 +32,17 @@ export type StatusBadge = {
 export type SpentOption = {
     can_activate: boolean;
     reason: string | null;
+    reason_code?: string | null;
+    spent?: boolean;
+    spent_reason?: string | null;
 };
 
 export type SpentCue = {
     spent: boolean;
     reason: string | null;
 };
+
+const UNIT_SPENT_CODES = new Set(["recovering", "stunned", "acted"]);
 
 function styleFor(id: string): { glyph: string; color: string } {
     return STATUS_STYLE[id] ?? { glyph: "•", color: "#7d8479" };
@@ -121,11 +126,28 @@ export function spentFromServer(args: {
 }): SpentCue {
     void args.acted;
     void args.active_unit_id;
+    const option = args.option;
+    if (option && typeof option.spent === "boolean") {
+        return {
+            spent: option.spent,
+            reason: option.spent
+                ? option.spent_reason ?? option.reason ?? null
+                : null,
+        };
+    }
+    if (option?.reason_code) {
+        const spent = UNIT_SPENT_CODES.has(option.reason_code);
+        return {
+            spent,
+            reason: spent
+                ? option.spent_reason ?? option.reason ?? null
+                : null,
+        };
+    }
     const stun = (args.statuses?.stun ?? 0) > 0;
     const rest = (args.recovery ?? 0) > 0;
-    const blocked = args.option?.can_activate === false;
     return {
-        spent: stun || rest || blocked,
-        reason: blocked ? args.option?.reason ?? null : null,
+        spent: stun || rest,
+        reason: null,
     };
 }
