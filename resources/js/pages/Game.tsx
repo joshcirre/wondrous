@@ -192,7 +192,8 @@ export default function Game() {
         connection?.bind("disconnected", offline);
         connection?.bind("unavailable", offline);
 
-        const timer = setInterval(refresh, 3000);
+        const motion = new URLSearchParams(window.location.search).get("motion");
+        const timer = setInterval(refresh, motion === "slow" ? 400 : 3000);
         window.addEventListener("focus", refresh);
         window.addEventListener("online", refresh);
         return () => {
@@ -272,7 +273,7 @@ export default function Game() {
         const params = new URLSearchParams(window.location.search);
         const motion = params.get("motion");
         const forced = motion === "reduce" || params.has("reduced");
-        queueRef.current?.setTimeScale(motion === "slow" ? 4 : 1);
+        queueRef.current?.setTimeScale(motion === "slow" ? 12 : 1);
         const media = window.matchMedia("(prefers-reduced-motion: reduce)");
         const apply = () => {
             const on = forced || media.matches;
