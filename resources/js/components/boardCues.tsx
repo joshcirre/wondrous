@@ -2,6 +2,10 @@ import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { Html, Line } from "@react-three/drei";
 import { Group, Mesh } from "three";
 import type { AimChip } from "../lib/aimChip";
+import {
+    BADGE_GAP_PX,
+    type StatusBadge,
+} from "../lib/statusCues";
 
 export const gold = "#edce91";
 export const goldDeep = "#d5b676";
@@ -127,6 +131,24 @@ export function FacingArrow({
                 <meshBasicMaterial color={color} />
             </mesh>
         </group>
+    );
+}
+
+export function BaseFacingArrow({
+    color,
+    tucked = false,
+}: {
+    color: string;
+    tucked?: boolean;
+}) {
+    return (
+        <mesh
+            rotation={[-Math.PI / 2, 0, Math.PI]}
+            position={[0, 0.028, tucked ? -0.22 : -0.4]}
+        >
+            <circleGeometry args={[tucked ? 0.045 : 0.065, 3]} />
+            <meshBasicMaterial color={color} />
+        </mesh>
     );
 }
 
@@ -594,6 +616,39 @@ export function MoonBadge({ turns }: { turns: number }) {
             <div className="rest-moon">
                 <span>☾</span>
                 {turns}
+            </div>
+        </Html>
+    );
+}
+
+export function StatusBadgeRow({ badges }: { badges: StatusBadge[] }) {
+    if (!badges.length) return null;
+    return (
+        <Html position={[0.36, 1.42, 0]} center sprite>
+            <div
+                className="status-badge-row"
+                data-badge-count={badges.length}
+                style={{ gap: BADGE_GAP_PX }}
+            >
+                {badges.map((badge) => (
+                    <button
+                        key={badge.id}
+                        type="button"
+                        className={`status-badge${badge.id === "rest" ? " rest-moon" : ""}`}
+                        style={{
+                            width: badge.width,
+                            borderColor: badge.color,
+                            color: badge.color,
+                        }}
+                        title={badge.label}
+                        aria-label={badge.label}
+                        data-label={badge.label}
+                        data-status={badge.id}
+                    >
+                        <span aria-hidden="true">{badge.glyph}</span>
+                        {badge.text}
+                    </button>
+                ))}
             </div>
         </Html>
     );

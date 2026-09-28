@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Game\StatusCatalog;
 use App\Support\ReleaseVersion;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -24,6 +25,6 @@ class HandleInertiaRequests extends Middleware
 
     public function share(Request $request): array
     {
-        return [...parent::share($request), 'release' => app(ReleaseVersion::class)->current(), 'auth' => ['user' => $request->user()?->only('id', 'name', 'username', 'email', 'avatar_character_id', 'rating', 'currency', 'wins', 'losses')], 'flash' => ['message' => fn () => $request->session()->get('message')]];
+        return [...parent::share($request), 'release' => app(ReleaseVersion::class)->current(), 'auth' => ['user' => $request->user()?->only('id', 'name', 'username', 'email', 'avatar_character_id', 'rating', 'currency', 'wins', 'losses')], 'flash' => ['message' => fn () => $request->session()->get('message')], 'status_catalog' => StatusCatalog::all()];
     }
 }

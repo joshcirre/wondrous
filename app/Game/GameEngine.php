@@ -341,9 +341,10 @@ final class GameEngine
                 $s['units'][$i]['cooldown'] = max(0, $u['cooldown'] - 1);
                 $s['units'][$i]['mana'] = min($u['max_mana'], $u['mana'] + 5);
                 if (($u['statuses']['burn'] ?? 0) > 0) {
-                    $s['units'][$i]['hp'] = max(0, $u['hp'] - 8);
-                    $this->log($s, CharacterCatalog::get($u['character_id'])['name'].' suffered 8 burn damage.');
-                    $this->emit($s, 'status_tick', ['unit_id' => $u['id'], 'owner_id' => $u['owner_id'], 'status' => 'burn', 'amount' => 8]);
+                    $burn = StatusCatalog::amount('burn');
+                    $s['units'][$i]['hp'] = max(0, $u['hp'] - $burn);
+                    $this->log($s, CharacterCatalog::get($u['character_id'])['name'].' suffered '.$burn.' burn damage.');
+                    $this->emit($s, 'status_tick', ['unit_id' => $u['id'], 'owner_id' => $u['owner_id'], 'status' => 'burn', 'amount' => $burn]);
                     if ($s['units'][$i]['hp'] === 0) {
                         $this->death($s, $i, $u['burn_source'] ?? $this->opponent($s, $actorId));
                     }
@@ -664,7 +665,7 @@ final class GameEngine
     private function armorFor(array $s, int $j): int
     {
         $target = $s['units'][$j];
-        $armor = CharacterCatalog::get($target['character_id'])['armor'] + (($target['statuses']['ward'] ?? 0) > 0 ? 12 : 0);
+        $armor = CharacterCatalog::get($target['character_id'])['armor'] + (($target['statuses']['ward'] ?? 0) > 0 ? StatusCatalog::amount('ward') : 0);
         foreach ($s['units'] as $ally) {
             if ($ally['character_id'] === 'herald' && $ally['hp'] > 0 && $ally['owner_id'] === $target['owner_id'] && $this->distance($ally, $target) <= 2) {
                 $armor += 4;

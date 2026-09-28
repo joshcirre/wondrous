@@ -3833,9 +3833,11 @@ label {
     color: #8fd19e;
     background: #1d2a22cc;
 }
-.rest-moon {
+.rest-moon,
+.status-badge {
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 3px;
     padding: 2px 6px;
     border-radius: 999px;
@@ -3844,6 +3846,50 @@ label {
     color: #c5c8bc;
     font-size: 0.7rem;
     font-variant-numeric: tabular-nums;
+    box-sizing: border-box;
+}
+.status-badge-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    pointer-events: auto;
+}
+.status-badge {
+    position: relative;
+    flex: 0 0 auto;
+    cursor: default;
+    line-height: 1.15;
+}
+.status-badge:focus-visible,
+.spent-reason:focus-visible {
+    outline: 1px solid #edce91;
+    outline-offset: 2px;
+}
+.status-badge:hover::after,
+.status-badge:focus-visible::after,
+.spent-reason:hover::after,
+.spent-reason:focus-visible::after {
+    content: attr(data-label);
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% + 6px);
+    transform: translateX(-50%);
+    white-space: nowrap;
+    padding: 3px 7px;
+    border-radius: 4px;
+    background: #161814f2;
+    color: #ece6d4;
+    font-size: 0.62rem;
+    letter-spacing: 0.01em;
+    z-index: 5;
+    pointer-events: none;
+}
+.spent-reason {
+    display: block;
+    width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    position: relative;
 }
 .facing-no-block {
     font-size: 0.58rem;

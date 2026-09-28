@@ -1,6 +1,6 @@
 import { createContext, Suspense, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from "react";
 import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
-import { Billboard, OrbitControls } from "@react-three/drei";
+import { Billboard, Html, OrbitControls } from "@react-three/drei";
 import { collectBoardHits, resolveBoardClick, resolveBoardHover } from "../lib/boardClick";
 import type { AimChip } from "../lib/aimChip";
 import { htmlBoardFloats, type AnimationQueue, type QueueView } from "../lib/animationQueue";
@@ -12,20 +12,20 @@ import {
     DashedRing,
     DeathBannerMarker,
     DottedTrail,
+    BaseFacingArrow,
     FadeGroup,
     FacingControls,
     FloatingResultCard,
     GhostMarker,
     GoldRing,
-    MoonBadge,
     MotionEffectMesh,
     SplitFacingRing,
+    StatusBadgeRow,
     SwapCue,
     ember,
     gold,
     goldDeep,
     healGreen,
-    spentGrey,
     teamRed,
     teal,
     tilePos,
@@ -47,6 +47,12 @@ import {
     Vector3,
 } from "three";
 import Miniature from "./miniatures";
+import type { LegalOptions } from "../types";
+import {
+    spentFromServer,
+    statusBadgeRow,
+    type StatusFact,
+} from "../lib/statusCues";
 
 type Unit = {
     id: string;
@@ -59,10 +65,13 @@ type Unit = {
     mana: number;
     facing?: string;
     recovery?: number;
+    statuses?: Record<string, number>;
 };
 type Props = {
     units: Unit[];
     viewerId: number;
+    options?: LegalOptions | null;
+    statusFacts?: Record<string, StatusFact>;
     selectedId: string | null;
     onSelect: (id: string | null) => void;
     onTile: (x: number, y: number) => void;
@@ -173,6 +182,8 @@ function Pawn({
     actionStrip,
     facingControls,
     aimHere,
+    option,
+    statusFacts,
 }: {
     unit: Unit;
     selected: boolean;
@@ -185,6 +196,8 @@ function Pawn({
     actionStrip?: Props["actionStrip"];
     facingControls?: Props["facingControls"];
     aimHere?: Props["aim"];
+    option?: { can_activate: boolean; reason: string | null } | null;
+    statusFacts?: Record<string, StatusFact>;
 }) {
     const group = useRef<Group>(null);
     const facing = useRef<Group>(null);
@@ -240,6 +253,20 @@ function Pawn({
     const pose = motionRef?.current.poses[unit.id];
     const dying = Boolean(pose?.defeated && !pose.hideMiniature);
     const showMiniature = unit.hp > 0 || dying;
+    const living = unit.hp > 0 && !pose?.defeated;
+    const spent = spentFromServer({
+        statuses: unit.statuses ?? {},
+        recovery: unit.recovery ?? 0,
+        option,
+    });
+    const badges = living
+        ? statusBadgeRow({
+              recovery: unit.recovery ?? 0,
+              statuses: unit.statuses ?? {},
+              facts: statusFacts,
+          })
+        : [];
+    const dimmed = faded ? 0.35 : spent.spent ? 0.6 : 1;
     return (
         <group ref={group} position={initialPosition.current}>
             {showMiniature && (
@@ -273,9 +300,9 @@ function Pawn({
             )}
             <NonInteractive>
                 <FadeGroup
-                    opacity={faded ? 0.35 : (unit.recovery ?? 0) > 0 ? 0.6 : 1}
+                    opacity={dimmed}
                 >
-                    {selected && showMiniature && (unit.recovery ?? 0) === 0 && (
+                    {selected && showMiniature && !spent.spent && (
                         <>
                             <GoldRing radius={0.38} width={0.08} y={0.055} />
                             <GoldRing
@@ -286,14 +313,14 @@ function Pawn({
                             />
                         </>
                     )}
-                    {(unit.recovery ?? 0) > 0 && showMiniature && (
+                    {spent.spent && showMiniature && (
                         <DashedRing radius={0.37} y={0.02} />
                     )}
                     {aimHere?.showFacingRing && showMiniature ? (
                         <SplitFacingRing facing={unit.facing ?? "south"} />
                     ) : (
                         showMiniature &&
-                        (unit.recovery ?? 0) === 0 &&
+                        !spent.spent &&
                         !selected && (
                             <mesh
                                 rotation={[-Math.PI / 2, 0, 0]}
@@ -320,21 +347,14 @@ function Pawn({
                             id={unit.character_id}
                             color={friendly ? teal : teamRed}
                         />
-                        <mesh
-                            rotation={[-Math.PI / 2, 0, Math.PI]}
-                            position={[0, 0.026, -0.37]}
-                        >
-                            <circleGeometry args={[0.055, 3]} />
-                            <meshBasicMaterial
-                                color={
-                                    (unit.recovery ?? 0) > 0
-                                        ? spentGrey
-                                        : friendly
-                                          ? teal
-                                          : teamRed
-                                }
+                        {living && (
+                            <BaseFacingArrow
+                                color={friendly ? teal : teamRed}
+                                tucked={Boolean(
+                                    aimHere?.showFacingRing || facingControls,
+                                )}
                             />
-                        </mesh>
+                        )}
                     </group>
                     {!motionRef && <CombatEffect hp={unit.hp} mana={unit.mana} />}
                     <Billboard visible={showMiniature} position={[0, 1.37, 0]}>
@@ -374,8 +394,21 @@ function Pawn({
                             />
                         </mesh>
                     </Billboard>
-                    {(unit.recovery ?? 0) > 0 && showMiniature && (
-                        <MoonBadge turns={unit.recovery ?? 0} />
+                    {badges.length > 0 && <StatusBadgeRow badges={badges} />}
+                    {spent.reason && living && (
+                        <Html
+                            position={[0, 0.28, 0]}
+                            center
+                            style={{ pointerEvents: "auto" }}
+                        >
+                            <span
+                                className="spent-reason"
+                                title={spent.reason}
+                                aria-label={spent.reason}
+                                tabIndex={0}
+                                data-label={spent.reason}
+                            />
+                        </Html>
                     )}
                     {faded && showMiniature && (
                         <GoldRing
@@ -965,6 +998,8 @@ function Scene({
     homeSide = "south",
     animation = null,
     onHud,
+    options = null,
+    statusFacts,
 }: Props) {
     const onBoardPointer = (e: ThreeEvent<MouseEvent>) => {
         e.stopPropagation();
@@ -1199,6 +1234,8 @@ function Scene({
                             ? aim
                             : null
                     }
+                    option={options?.units[unit.id] ?? null}
+                    statusFacts={statusFacts}
                 />
             ))}
         </MotionRefContext.Provider>

@@ -208,9 +208,17 @@ export type Game = {
     created_at: string;
     reward_claimed?: boolean;
 };
+export type StatusFact = {
+    id?: string;
+    name: string;
+    amount?: number | null;
+    label: string;
+};
+export type StatusCatalog = Record<string, StatusFact>;
 export type Shared = {
     auth: { user: User | null };
     flash?: { message?: string };
     catalog: Catalog;
+    status_catalog?: StatusCatalog;
     [key: string]: unknown;
 };

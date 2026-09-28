@@ -1083,6 +1083,8 @@ export default function Game() {
                                 <Battlefield
                                     units={state.units}
                                     viewerId={viewer.id}
+                                    options={game.options}
+                                    statusFacts={props.status_catalog}
                                     homeSide={homeSide}
                                     selectedId={selectedId}
                                     onSelect={select}
