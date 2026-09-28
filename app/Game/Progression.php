@@ -19,7 +19,7 @@ final class Progression
     /** Ranked, correspondence, rating, crowns and Rankings. First win or this many finishes past the rewards bar. */
     public const COMPETITIVE_AFTER = 5;
 
-    public const RANKED_HINT = 'Ranked unlocks after your first win or 5 finished matches.';
+    public const RANKED_HINT = 'Ranked unlocks after your first win or 5 full matches.';
 
     public const CORRESPONDENCE_HINT = 'Correspondence unlocks after your first win or 5 finished matches.';
 
