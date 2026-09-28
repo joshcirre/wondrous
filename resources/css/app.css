@@ -1418,6 +1418,11 @@ small {
     font-family: Cinzel, Georgia, serif;
     text-shadow: 0 2px 8px #1a1208cc;
     line-height: 1;
+    background: #111a13ee;
+    border: 1px solid currentColor;
+    border-radius: 4px;
+    padding: 10px 22px;
+    z-index: 20;
 }
 .board-float-overlay strong {
     font-size: 2.4rem;

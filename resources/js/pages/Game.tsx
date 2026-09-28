@@ -104,7 +104,6 @@ export default function Game() {
         floatChance: "",
     });
     const queueRef = useRef<AnimationQueue | null>(null);
-    const floatLinger = useRef<number>(0);
     if (!queueRef.current) {
         queueRef.current = createAnimationQueue({
             viewerId: viewer.id,
@@ -220,19 +219,6 @@ export default function Game() {
                 floatValue: snap.floatValue || prev.floatValue,
                 floatChance: snap.floatChance || prev.floatChance,
             };
-            if (snap.floatTitle) {
-                window.clearTimeout(floatLinger.current);
-                floatLinger.current = window.setTimeout(() => {
-                    setAnimHud((held) => ({
-                        ...held,
-                        floats: "",
-                        floatKind: "",
-                        floatTitle: "",
-                        floatValue: "",
-                        floatChance: "",
-                    }));
-                }, 3000);
-            }
             if (
                 prev.turnBanner === next.turnBanner &&
                 prev.floats === next.floats &&
@@ -1109,32 +1095,6 @@ export default function Game() {
                                     interactive={!busy && !animLocked}
                                     animation={queueRef.current}
                                     onHud={(hud) => {
-                                        setAnimHud((prev) => {
-                                            const next = {
-                                                turnBanner: hud.turnBanner,
-                                                floats: hud.floats || prev.floats,
-                                                deathBanners: hud.deathBanners,
-                                                beat: hud.beat,
-                                                floatKind: hud.floatKind || prev.floatKind,
-                                                floatTitle: hud.floatTitle || prev.floatTitle,
-                                                floatValue: hud.floatValue || prev.floatValue,
-                                                floatChance: hud.floatChance || prev.floatChance,
-                                            };
-                                            if (hud.floatTitle) {
-                                                window.clearTimeout(floatLinger.current);
-                                                floatLinger.current = window.setTimeout(() => {
-                                                    setAnimHud((held) => ({
-                                                        ...held,
-                                                        floats: "",
-                                                        floatKind: "",
-                                                        floatTitle: "",
-                                                        floatValue: "",
-                                                        floatChance: "",
-                                                    }));
-                                                }, 3000);
-                                            }
-                                            return next;
-                                        });
                                         if (hud.inputLocked !== animLockedRef.current) {
                                             animLockedRef.current = hud.inputLocked;
                                             setAnimLocked(hud.inputLocked);
