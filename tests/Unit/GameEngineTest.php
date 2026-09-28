@@ -177,8 +177,8 @@ class GameEngineTest extends TestCase
         $s['units'][1]['facing'] = 'north';
         $s = $this->engine()->apply($s, 1, 'attack', ['unit_id' => '1-warden', 'target_id' => '2-warden']);
         self::assertSame('finished', $s['phase']);
-        self::assertSame('last_rear', $s['deciding']['rule']);
-        self::assertSame("Alice's Iron Warden struck Bob's Iron Warden from behind.", $s['deciding']['text']);
+        self::assertSame('decisive_defeat', $s['deciding']['rule']);
+        self::assertSame("Turn 1: Alice's Iron Warden defeated Bob's Iron Warden.", $s['deciding']['text']);
         self::assertStringContainsString("Alice's Iron Warden: Hit, 95% chance.", implode("\n", array_column($s['log'], 'text')));
         self::assertStringContainsString("Bob's Iron Warden was defeated.", implode("\n", array_column($s['log'], 'text')));
     }
@@ -199,8 +199,8 @@ class GameEngineTest extends TestCase
         self::assertSame('finished', $s['phase']);
         self::assertSame(1, $s['winner_id']);
         self::assertSame('elimination', $s['finish_reason']);
-        self::assertSame('last_skill', $s['deciding']['rule']);
-        self::assertSame("Alice's Violet Arcanist ended it with Arcane Lance.", $s['deciding']['text']);
+        self::assertSame('decisive_defeat', $s['deciding']['rule']);
+        self::assertSame("Turn 1: Alice's Violet Arcanist defeated Bob's Iron Warden.", $s['deciding']['text']);
         self::assertStringContainsString("Alice's Violet Arcanist", implode(' ', array_column($s['log'], 'text')));
         $this->expectException(GameRuleException::class);
         $e->apply($s, 1, 'end_turn');

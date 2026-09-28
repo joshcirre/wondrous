@@ -305,6 +305,7 @@ final class GameEngine
                     'name' => Chronicle::unitName($s, $t),
                     'chance' => $chance,
                 ]));
+                DecidingMoment::noteBlock($s, $u, $t);
                 $this->emit($s, 'attack', [
                     'unit_id' => $u['id'], 'owner_id' => $u['owner_id'], 'target_id' => $t['id'], 'target_owner_id' => $t['owner_id'],
                     'side' => $side, 'roll' => ['accuracy' => $c['accuracy'], 'hit_roll' => $hit, 'block_chance' => $chance, 'block_roll' => $block],
@@ -325,7 +326,7 @@ final class GameEngine
             'defender' => Chronicle::unitName($s, $t),
             'damage' => $damage,
         ]));
-        DecidingMoment::noteHit($s, $u, $t, $damage);
+        DecidingMoment::noteHit($s, $u, $t, $damage, $side, $s['casting_skill'] ?? null);
         if ($roll) {
             $this->emit($s, 'attack', [
                 'unit_id' => $u['id'], 'owner_id' => $u['owner_id'], 'target_id' => $t['id'], 'target_owner_id' => $t['owner_id'],

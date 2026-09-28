@@ -68,4 +68,6 @@ Mockup: Plate `board-cues.png` (positions and numbers are samples). All highligh
 ### End screen
 - Eyebrow stays gold mono: "The battle is decided".
 - The headline stays Cinzel ("Victory is yours." / "A worthy battle." / "Match drawn.").
-- Under it, a hairline block with gold mono "What decided it" and the server line in Cinzel. No drop shadow. The client never writes this line.
+- The deciding sentence replaces the generic line under the headline. 16 px Inter in the main text colour (`--text`), not Cinzel and not small caps. Two lines max. Names are semibold. Turn numbers are tabular. The client never writes this sentence.
+- On a loss only, a lesson line sits under it: gold mono "LESSON" eyebrow, then one line of smaller muted text. Hide the roster hint ("Protect your supports. Watch the flanks.") while that lesson is showing.
+- Both lines fade in over 140 ms. With reduced motion they appear immediately. No drop shadow. No separate "What decided it" eyebrow.

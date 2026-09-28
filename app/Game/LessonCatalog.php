@@ -4,9 +4,54 @@ namespace App\Game;
 
 use App\Game\Scenarios\FirstMatch;
 
-/** Server-owned first-match lesson copy. Brief or Marquee can edit the sentences here. */
+/** Server-owned player copy. Brief or Marquee can edit the sentences here. */
 final class LessonCatalog
 {
+    public const DECIDING_RULES = [
+        'decisive_defeat',
+        'flanking_hit',
+        'biggest_hit',
+        'resign',
+        'timeout',
+        'draw',
+        'worthy',
+    ];
+
+    public const DECIDING = [
+        'decisive_defeat' => 'Turn {n}: {attacker} defeated {defender}.',
+        'decisive_defeat_consequence' => 'Turn {n}: {attacker} defeated {defender}, {consequence}.',
+        'flanking_hit' => '{attacker} dealt {damage} to {defender} from behind.',
+        'flanking_backstab' => '{attacker} dealt {damage} to {defender} with Backstab.',
+        'biggest_hit' => '{attacker} dealt {damage} to {defender}.',
+        'resign' => '{name} resigned.',
+        'timeout' => '{name} ran out of time.',
+        'draw' => 'Neither formation held the field.',
+        'worthy' => 'A worthy battle.',
+    ];
+
+    public const CONSEQUENCE = [
+        'without_healing' => 'leaving them without healing',
+    ];
+
+    public const END_LESSON_RULES = [
+        'rear_hits',
+        'blocked',
+        'resting_defeat',
+        'fallback',
+    ];
+
+    public const END_LESSON = [
+        'rear_hits' => 'They reached your rear twice. Face the threat before you strike.',
+        'blocked' => 'Your attacks were blocked twice. Find the rear, or a skill that always hits.',
+        'resting_defeat' => 'A champion fell while resting. Do not leave them spent in range.',
+        'fallback' => 'One champion. Then a gold tile. Then an enemy in range.',
+    ];
+
+    public static function isHealer(string $characterId): bool
+    {
+        return (CharacterCatalog::get($characterId)['role'] ?? null) === 'Healer';
+    }
+
     /**
      * @return array{title: string, body: string}|null
      */

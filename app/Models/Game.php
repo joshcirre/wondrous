@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Game\BoardCues;
+use App\Game\DecidingMoment;
 use App\Game\GameEngine;
 use App\Game\LessonCatalog;
 use Illuminate\Database\Eloquent\Model;
@@ -41,6 +42,9 @@ class Game extends Model
         }
         if ($state['phase'] === 'deployment') {
             $state['units'] = array_values(array_filter($state['units'], fn ($u) => $u['owner_id'] === $id));
+        }
+        if (($state['phase'] ?? null) === 'finished' && isset($this->state['deciding'])) {
+            $state['deciding'] = DecidingMoment::forViewer($this->state, $id);
         }
         $options = (new GameEngine)->options($this->state, $id);
         if (is_array($options)) {
@@ -100,6 +104,9 @@ class Game extends Model
     {
         foreach (['offers', 'pool', 'reward_candidates', 'loadouts'] as $private) {
             unset($state[$private]);
+        }
+        if (isset($state['deciding'])) {
+            $state['deciding'] = DecidingMoment::forViewer($state, null, spectator: true);
         }
 
         return $state;

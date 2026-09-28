@@ -3,7 +3,9 @@
 namespace Tests\Feature;
 
 use App\Game\ComputerOpponent;
+use App\Game\DecidingMoment;
 use App\Game\GameEngine;
+use App\Game\LessonCatalog;
 use App\Models\Game;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -42,7 +44,63 @@ class EndScreenDecidingTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Game')
                 ->where('game.state.deciding.rule', 'resign')
-                ->where('game.state.deciding.text', 'Rowan resigned.'));
+                ->where('game.state.deciding.text', 'Rowan resigned.')
+                ->where('game.state.deciding.lesson', null));
+
+        $this->actingAs($host)->get('/games/'.$game->code)
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Game')
+                ->where('game.state.deciding.text', 'Rowan resigned.')
+                ->where('game.state.deciding.lesson.rule', 'fallback')
+                ->where('game.state.deciding.lesson.text', LessonCatalog::END_LESSON['fallback']));
+    }
+
+    public function test_participants_see_perspective_names_and_only_the_loser_gets_a_lesson(): void
+    {
+        $host = User::factory()->create(['name' => 'Rowan']);
+        $guest = User::factory()->create(['name' => 'Elara']);
+        $this->ensureProgressionUnlocked($host);
+        $this->ensureProgressionUnlocked($guest);
+        $game = Game::where('code', $this->actingAs($host)->postJson('/games', ['name' => 'Lead line', 'ranked' => false])->json('code'))->firstOrFail();
+        $this->act($game, $guest, 'join');
+        $state = $game->state;
+        $state['phase'] = 'finished';
+        $state['winner_id'] = $host->id;
+        $state['finish_reason'] = 'elimination';
+        $state['turn_number'] = 3;
+        $state['story'] = [
+            'defeats' => [[
+                'turn' => 3,
+                'attacker_owner_id' => $host->id,
+                'attacker_character_id' => 'warden',
+                'defender_owner_id' => $guest->id,
+                'defender_character_id' => 'cleric',
+                'defender_recovery' => 0,
+                'only_healer' => true,
+                'standing' => [$host->id => 6, $guest->id => 5],
+            ]],
+        ];
+        $state['deciding'] = DecidingMoment::resolve($state);
+        $game->state = $state;
+        $game->phase = 'finished';
+        $game->save();
+
+        $this->actingAs($host)->get('/games/'.$game->code)
+            ->assertOk()
+            ->assertDontSee('What decided it', false)
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Game')
+                ->where('game.state.deciding.rule', 'decisive_defeat')
+                ->where('game.state.deciding.text', 'Turn 3: your Iron Warden defeated their Sun Cleric, leaving them without healing.')
+                ->where('game.state.deciding.lesson', null));
+
+        $this->actingAs($guest)->get('/games/'.$game->code)
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Game')
+                ->where('game.state.deciding.text', 'Turn 3: their Iron Warden defeated your Sun Cleric, leaving them without healing.')
+                ->where('game.state.deciding.lesson.rule', 'fallback'));
     }
 
     public function test_practice_replay_names_the_computer_on_null_actor_frames(): void
