@@ -1337,7 +1337,8 @@ export default function Game() {
                                             )}
                                     </div>
                                 </>
-                            ) : (
+                            ) : game.lesson &&
+                              dismissedLesson !== lessonKey(game.lesson) ? null : (
                                 <div className="unit-empty">
                                     <span>✦</span>
                                     <h3>Select a champion.</h3>
