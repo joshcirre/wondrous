@@ -291,23 +291,30 @@ export function createAnimationQueue(options: QueueOptions) {
     }
 
     function liveFloats(at: number): FloatingResult[] {
-        return floats
-            .map((item) => {
-                const age = at - item.born;
-                if (age < 0 || age >= TIMING.floatMs) return null;
-                const fadeStart = TIMING.floatMs - TIMING.floatFadeMs;
-                return {
-                    ...item,
-                    rise: reducedMotion
-                        ? 0
-                        : TIMING.floatRisePx * clamp01(age / TIMING.floatMs),
-                    opacity:
-                        age <= fadeStart
-                            ? 1
-                            : 1 - (age - fadeStart) / TIMING.floatFadeMs,
-                };
-            })
-            .filter((item): item is FloatingResult => item !== null);
+        const visible: FloatingResult[] = [];
+        for (const item of floats) {
+            const age = at - item.born;
+            if (age < 0 || age >= TIMING.floatMs) continue;
+            const fadeStart = TIMING.floatMs - TIMING.floatFadeMs;
+            visible.push({
+                id: item.id,
+                unitId: item.unitId,
+                x: item.x,
+                y: item.y,
+                kind: item.kind,
+                title: item.title,
+                value: item.value,
+                chance: item.chance,
+                rise: reducedMotion
+                    ? 0
+                    : TIMING.floatRisePx * clamp01(age / TIMING.floatMs),
+                opacity:
+                    age <= fadeStart
+                        ? 1
+                        : 1 - (age - fadeStart) / TIMING.floatFadeMs,
+            });
+        }
+        return visible;
     }
 
     function liveEffects(at: number): MotionEffect[] {
@@ -558,7 +565,6 @@ export function createAnimationQueue(options: QueueOptions) {
                                     TIMING.missSidestepMs;
                                 target.sidestep = Math.sin(Math.PI * t) * 0.18;
                             } else {
-                                const end = motion.duration;
                                 const back = clamp01(
                                     (elapsed - (motion.duration - TIMING.meleeStepBackMs)) /
                                         TIMING.meleeStepBackMs,
@@ -566,7 +572,6 @@ export function createAnimationQueue(options: QueueOptions) {
                                 attacker.lungeX = (dx / dist) * 0.28 * (1 - back);
                                 attacker.lungeZ = (dy / dist) * 0.28 * (1 - back);
                             }
-                            void end;
                         } else if (elapsed < TIMING.projectileMs) {
                             spawnProjectile(event, attacker, target, elapsed);
                         } else if (event.outcome === "hit") {

@@ -157,10 +157,13 @@ export default function Game() {
         if (state.phase === "finished") router.reload({ only: ["auth"] });
     }, [state.phase]);
     useEffect(() => {
-        return queueRef.current?.onLock((locked) => {
+        const unsubscribe = queueRef.current?.onLock((locked) => {
             animLockedRef.current = locked;
             setAnimLocked(locked);
         });
+        return () => {
+            unsubscribe?.();
+        };
     }, []);
     useEffect(() => {
         const media = window.matchMedia("(prefers-reduced-motion: reduce)");
